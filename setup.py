@@ -1,15 +1,20 @@
 """
 Installer for scunch.
 """
-from distutils.core import setup
+from setuptools import setup, find_packages
 
-from scunch import scmpunch
+from scunch import scunch
 
 setup(
     name="scunch",
     version=scunch.__version__,
     packages=["scunch"],
-    description="punch folder over SCM working copy applying add/remove/modify (svn)",
+    description="copy folder over working copy and apply add/remove/modify (svn)",
+    entry_points = {
+        'console_scripts': [
+            'scunch = scunch.scunch:main'
+        ],
+    },
     keywords="svn scm version import apply copy transfer punch working work copy",
     author="Thomas Aglassinger",
     author_email="roskakori@users.sourceforge.net",

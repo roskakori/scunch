@@ -216,6 +216,7 @@ import os.path
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import types
 import urlparse
@@ -966,17 +967,31 @@ def scunch(sourceFolderPath, scmWork):
     print sorted(scmWork.list(""))
     raise NotImplementedError()
 
-if __name__ == "__main__":
+def main(arguments=None):
+    if arguments == None:
+        actualArguments = sys.argv
+    else:
+        actualArguments = arguments
     # Set up logging.
     logging.basicConfig(level=logging.INFO)
     
     parser = optparse.OptionParser(usage="%prog [options] FOLDER1 [FOLDER2 ...]", version="%prog " + __version__)
     parser.add_option("-w", "--work", default=os.getcwd(), dest="workPath", metavar="FOLDER", help="folder with working copy to overwrite (default: current working directory")
-    (options, others) = parser.parse_args()
+    (options, others) = parser.parse_args(actualArguments[1:])
     if not others:
         parser.error("FOLDER to punch into work copy must be specified")
    
-    _log.info("modify %r", options.workPath)
-    scmWork = createScmWork(options.workPath)
-    for sourceFolderPath in others:
-        scunch(sourceFolderPath, scmWork)
+    exitCode = 1
+    try:
+        scmWork = createScmWork(options.workPath)
+        for sourceFolderPath in others:
+            scunch(sourceFolderPath, scmWork)
+        exitCode = 0
+    except (EnvironmentError, ScmError), error:
+        _log.error("%s", error)
+    except Exception, error:
+        _log.exception("%s", error)
+    return exitCode
+
+if __name__ == "__main__":
+    sys.exit(main())
