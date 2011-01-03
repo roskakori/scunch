@@ -1078,22 +1078,28 @@ def scunch(sourceFolderPath, scmWork):
     print sorted(scmWork.list(""))
     raise NotImplementedError()
 
+_LogLevelNameMap = {
+    'debug': logging.DEBUG,
+    'info': logging.INFO,
+    'warning': logging.WARNING,
+    'error': logging.ERROR
+}
+
+_Usage = """%prog [options] FOLDER [WORK-FOLDER]
+    
+  Punch files and folders from an unversioned FOLDER into a SCM's
+  work copy at WORK-FOLDER and perform the required add and remove
+  operations."""
+
 def main(arguments=None):
     if arguments == None:
         actualArguments = sys.argv
     else:
         actualArguments = arguments
 
-    # Set up logging.
-    logging.basicConfig(level=logging.INFO)
-    
-    usage = """%prog [options] FOLDER [WORK-FOLDER]
-    
-  Punch files and folders from an unversioned FOLDER into a SCM's
-  work copy at WORK-FOLDER and perform the required add and remove
-  operations."""
-    parser = optparse.OptionParser(usage=usage, version="%prog " + __version__)
+    parser = optparse.OptionParser(usage=_Usage, version="%prog " + __version__)
     parser.add_option("-c", "--commit", action="store_true", dest="isCommit", help="after punching the changes into the work copy, commit them")
+    parser.add_option("-L", "--log", default='info', dest="logLevel", metavar="LEVEL", type="choice", choices=_LogLevelNameMap.keys(), help='logging level (default: "%default")')
     parser.add_option("-m", "--message", default="Scunched.", dest="commitMessage", metavar="TEXT", help='text for commit message (default: "%default")')
     (options, others) = parser.parse_args(actualArguments[1:])
     othersCount = len(others)
@@ -1107,6 +1113,8 @@ def main(arguments=None):
         workFolderPath = others[1]
     else:
         parser.error("unrecognized options must be removed: %s" % others[2:])
+
+    logging.basicConfig(level=_LogLevelNameMap[options.logLevel])
    
     exitCode = 1
     try:
