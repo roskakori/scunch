@@ -15,6 +15,7 @@ setup(
             'scunch = scunch.scunch:main'
         ],
     },
+    test_suite = "scunch.test_scunch",
     keywords="svn scm version import apply copy transfer punch working work copy",
     author="Thomas Aglassinger",
     author_email="roskakori@users.sourceforge.net",
