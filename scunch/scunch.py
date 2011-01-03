@@ -20,34 +20,142 @@ Currently supported SCM's are:
 Installation
 ------------
 
-To install scunch, you need Python 2.6.
+To install scunch, you need:
 
-TODO: Describe installation.
+* Python 2.6 or any later 2.x version, available from
+  <http://www.python.org/>.
+* The ``distribute`` package, available from
+  <http://packages.python.org/distribute/>.
 
+Then you can simply run::
+
+  easy_install scunch
+
+If you prefer a manual installation, you can obtain the ZIP archive from
+<http://pypi.python.org/pypi/scunch/>.  Furthermore the source code is
+available from <https://github.com/roskakori/scunch>.
 
 Basic usage
 -----------
 
 To read a summary of the available options, run::
 
-  scunch --help
+  > scunch --help
 
 To "punch" the folder ``/tmp/ohsome`` into the work copy ``~/projects/ohsome``, run::
 
-  scunch /tmp/ohsome ~/projects/ohsome
+  > scunch /tmp/ohsome ~/projects/ohsome
 
 To do the same but also commit the changes, run::
 
-  scunch --commit --message "Punched version 1.3.8." /tmp/ohsome ~/projects/ohsome
+  > scunch --commit --message "Punched version 1.3.8." /tmp/ohsome ~/projects/ohsome
 
 To control how much details you can see during the punching, use ``--log.``. To see
 only warnings and errors, use::
 
-  scunch --log=warning /tmp/ohsome ~/projects/ohsome
+  > scunch --log=warning /tmp/ohsome ~/projects/ohsome
 
 To see a lot of details about the inner workings, use::
 
-  scunch --log=debug /tmp/ohsome ~/projects/ohsome
+  > scunch --log=debug /tmp/ohsome ~/projects/ohsome
+
+
+Upgrading from old school version management
+--------------------------------------------
+
+Tim is a hobbyist developer who has been programming a nifty utility
+program for a while called "nifti". Until recently he has not been using
+any version management. If he thought it useful to keep a certain state of
+the source code, he just copied it to a new folder and added a timestamp to
+the folder name::
+
+  > cd ~/projects
+  > ls
+  nifti
+  nifti_2010-11-27
+  nifti_2010-09-18
+  nifti_2010-07-03
+  nifti_2010-05-23
+
+After having been enlightened, he decides to move the project to a
+Subversion repository. Nevertheless he would like to have all his snapshots
+available.
+
+As a first step, Tim creates a local Subversion repository::
+
+  > mkdir /home/tim/repositories
+  > svnadmin create /home/tim/repositories
+
+Next he adds the project folders using the ``file`` protocol::
+
+  > svn mkdir file:///home/tim/repositories/nifti/trunk  file:///home/tim/repositories/nifti/tags  file:///home/tim/repositories/nifti/branches
+
+No he can check out the ``trunk`` to a temporary folder::
+  
+  > cd /tmp
+  > svn checkout --username tim file:///home/tim/repositories/nifti/trunk nifti
+
+Now it is time to punch the oldest version into the still empty work copy::
+
+  > scunch ~/projects/nifti_2010-05-23
+
+Tim reviews the changes to be committed. Unsurprisingly, there are only
+"add" operations::
+
+  > svn status
+  A   setup.py
+  A   README.txt
+  A   nifti/
+  ...
+
+To commit this, Tim runs::
+
+  > svn commit --message "Added initial version."
+
+Then he proceeds with the other versions, where he lets ``scunch`` handle
+the commit all by itself::
+
+  > scunch --commit ~/projects/nifti_2010-07-03
+  > scunch --commit ~/projects/nifti_2010-08-18
+  > scunch --commit ~/projects/nifti_2010-11-27
+  > scunch --commit ~/projects/nifti
+
+Now all the changes are nicely traceable in the repository. However, the
+timestamps use the time of the commit instead of the date when the source
+code was current. In order to fix that, Tim looks at the history log to
+find out the revision number of his changes and notes which actual date the
+are supposed to represent::
+
+  r1 --> before 2010-05-23
+  r2 --> 2010-05-23
+  r3 --> 2010-07-03
+  r4 --> 2010-08-18
+  r5 --> 2010-11-27
+  r6 --> today
+
+To update the timestamp in the repository, Tim sets the revision property
+``date`` accordingly::
+
+  > svn propset svn:date --revprop --revision 2 "2010-05-23 12:00:00Z" file:///home/tim/repositories/nifti/trunk
+
+Note that this only works with the ``file`` protocol. If you want to do the
+same on a repository using the ``http`` protocol, you have to install a
+proper post commit hook in the repository that allows you to change
+properties even after they have been comitted. Refer to the Subversion
+manual for details on how to do that.
+
+Similarly, Tim can set the log comments to a more meaningful text using the
+revision property ``log``.
+
+Once the repository is in shape, Tim can remove his current source code and
+replace it with the work copy::
+
+  > cd ~/projects
+  > mv nifti nifti_backup # Do not delete just yet in case something went wrong.
+  > svn checkout file:///home/tim/repositories/nifti/trunk nifti
+
+Now Tim has a version controlled project where he can commit changes any
+time he wants.
 
 
 Version management of third party source code
@@ -85,7 +193,7 @@ Joe's company already has a Subversion repository for various projects, so
 as a first step he adds a new project to the repository and creates a new
 work copy on his computer::
 
-  svn add --message "Added project folders for ohsome application by Vendor." http://svn.joescompany.com/ohsome http://svn.joescompany.com/ohsome/trunk http://svn.joescompany.com/ohsome/tags http://svn.joescompany.com/ohsome/branches
+  > svn add --message "Added project folders for ohsome application by Vendor." http://svn.joescompany.com/ohsome http://svn.joescompany.com/ohsome/trunk http://svn.joescompany.com/ohsome/tags http://svn.joescompany.com/ohsome/branches
 
 This creates a project folder and the usual trunk, tags and branches
 folders. For the time being, Joe intends to use only the trunk to hold the
@@ -93,40 +201,40 @@ most current version of the "ohsome" application.
 
 Next, Joe creates a yet empty work copy in a local folder on his computer::
 
-  cd ~/projects
-  svn checkout http://svn.joescompany.com/ohsome/trunk ohsome
+  > cd ~/projects
+  > svn checkout http://svn.joescompany.com/ohsome/trunk ohsome
 
 Now he copies all the files from the web server to the work copy::
 
-  cp -r /web/ohsome/* ~/projects/ohsome 
+  > cp -r /web/ohsome/* ~/projects/ohsome 
 
 Although the files are now in the work copy, the are not yet under version
 management. So Joe adds almost all the files except one folder named "temp" that
 according to his knowledge contains only temporary files generated by the
 web application.
 
-  cd ~/projects/ohsome
-  svn propset svn:ignore temp .
-  svn add ...
+  > cd ~/projects/ohsome
+  > svn propset svn:ignore temp .
+  > svn add ...
 
 After that, he manually commits the current state of the web server::
 
-  svn commit --message "Added initial application version 1.3.7."
+  > svn commit --message "Added initial application version 1.3.7."
   
 For the time being, Joe is done.
 
 A couple of weeks later, the vendor send a ZIP archive with the application
 version 1.3.8. As usual, Joe extracts the archive::
 
-  cd /tmp
-  unzip ~/Downloads/ohsome_1.3.8.zip
+  > cd /tmp
+  > unzip ~/Downloads/ohsome_1.3.8.zip
 
 The result of this is a folder /tmp/ohsome containing all the files and
 folders to be copied to the web server under /web/ohsome/. However, this
 time Joe wants to review the changes first by "punching" them into his
 work copy. So he runs ``scunch`` with the following options::
 
-  scunch /tmp/ohsome ~/projects/ohsome
+  > scunch /tmp/ohsome ~/projects/ohsome
 
 This "punches" all the changes from folder /tmp/ohsome (where the ZIP
 archive got extracted) to the work copy in ~/projects/ohsome.
@@ -137,53 +245,56 @@ As a result Joe can review the changes. He uses TortoiseSVN for that, but
 Once he finished his review without noticing any obvious issues, he
 manually commits the changes::
 
-  cd ~/projects/ohsome
-  svn commit --message "Punched version 1.3.8."
+  > cd ~/projects/ohsome
+  > svn commit --message "Punched version 1.3.8."
 
 When version 1.3.9 ships, Joe decides that he might as well review the
 changes directly in the repository after the commit. So this time he simply
 uses::
 
-  cd /tmp
-  unzip ~/Downloads/ohsome_1.3.9.zip
-  scunch --commit --message "Punched version 1.3.9."
+  > cd /tmp
+  > unzip ~/Downloads/ohsome_1.3.9.zip
+  > scunch --commit --message "Punched version 1.3.9."
 
-Joe can then use ``svn log`` to find particular points of interest:
+Joe can then use ``svn log`` to look for particular points of interest.
+For instance, to find modified configuration files (matching the pattern \*.cfg)::
 
-  1. Modified configuration files (matching the pattern *.cfg)::
-      svn log --verbose --limit 1 http://svn.joescompany.com/ohsome/trunk | grep "\.cfg$"
-  2. Removed files and folders::
-      svn log --verbose --limit 1 http://svn.joescompany.com/ohsome/trunk | grep "^   D" 
-      # Note: three blanks and a "D" for "deleted".
+  > svn log --verbose --limit 1 http://svn.joescompany.com/ohsome/trunk | grep "\\.cfg$"
+
+To get a list of Removed files and folders::
+
+  > svn log --verbose --limit 1 http://svn.joescompany.com/ohsome/trunk | grep "^   D" 
+
+(Note: The ``grep`` looks for three blanks and a "D" for "deleted".)
  
  
-Pseudo SCM for users with SCM issues
-------------------------------------
-
-SCM in its current form approached the IT scene relatively late. Most
-concepts for operating systems and file management already have been
-established a long time ago. Consequently SCM has not been integrated well
-in the users's work flow and ended up as optional add on instead of being
-an integral part of it. Despite brave attempts like MULTICS, VMS, WebDAV
-and Desktop integrations like TortoiseSVN, version managements remains a
-mystery to many.
-
-Although software developers profit enough from SCM to take the effort
-learning to cope with them, people from other backgrounds keep stumbling
-over the various idiosyncrasies and usability issues modern SCM's offer.
-This is particular true for people who see computers as tools that help
-them to get their job done and often limit their use to a single
-application (for instance graphical artists) or people who at one time
-decided that the know everything they need to know about computers and can
-safely ignore everything that happened after the Disco movement (for
-instance mainframe elders).
-
-Continuous attempts to get such people to use an SCM only result in
-increased frustration and waste of time for everybody involved.
-
-TODO: Describe solution.
+.. Pseudo SCM for users with SCM issues
+.. ------------------------------------
+.. 
+.. SCM in its current form approached the IT scene relatively late. Most
+.. concepts for operating systems and file management already have been
+.. established a long time ago. Consequently SCM has not been integrated well
+.. in the users's work flow and ended up as optional add on instead of being
+.. an integral part of it. Despite brave attempts like MULTICS, VMS, WebDAV
+.. and Desktop integrations like TortoiseSVN, version managements remains a
+.. mystery to many.
+.. 
+.. Although software developers profit enough from SCM to take the effort
+.. learning to cope with them, people from other backgrounds keep stumbling
+.. over the various idiosyncrasies and usability issues modern SCM's offer.
+.. This is particular true for people who see computers as tools that help
+.. them to get their job done and often limit their use to a single
+.. application (for instance graphical artists) or people who at one time
+.. decided that the know everything they need to know about computers and can
+.. safely ignore everything that happened after the Disco movement (for
+.. instance mainframe elders).
+.. 
+.. Continuous attempts to get such people to use an SCM only result in
+.. increased frustration and waste of time for everybody involved.
+.. 
+.. TODO: Describe solution.
 """
-# Copyright (C) 2010-2011 Thomas Aglassinger
+# Copyright (C) 2011 Thomas Aglassinger
 #
 # This program is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published by
@@ -972,20 +1083,37 @@ def main(arguments=None):
         actualArguments = sys.argv
     else:
         actualArguments = arguments
+
     # Set up logging.
     logging.basicConfig(level=logging.INFO)
     
-    parser = optparse.OptionParser(usage="%prog [options] FOLDER1 [FOLDER2 ...]", version="%prog " + __version__)
-    parser.add_option("-w", "--work", default=os.getcwd(), dest="workPath", metavar="FOLDER", help="folder with working copy to overwrite (default: current working directory")
+    usage = """%prog [options] FOLDER [WORK-FOLDER]
+    
+  Punch files and folders from an unversioned FOLDER into a SCM's
+  work copy at WORK-FOLDER and perform the required add and remove
+  operations."""
+    parser = optparse.OptionParser(usage=usage, version="%prog " + __version__)
+    parser.add_option("-c", "--commit", action="store_true", dest="isCommit", help="after punching the changes into the work copy, commit them")
+    parser.add_option("-m", "--message", default="Scunched.", dest="commitMessage", metavar="TEXT", help='text for commit message (default: "%default")')
     (options, others) = parser.parse_args(actualArguments[1:])
-    if not others:
+    othersCount = len(others)
+    if othersCount == 0:
         parser.error("FOLDER to punch into work copy must be specified")
+    elif othersCount == 1:
+        sourceFolderPath = others[0]
+        workFolderPath = os.getcwd()
+    elif othersCount == 2:
+        sourceFolderPath = others[0]
+        workFolderPath = others[1]
+    else:
+        parser.error("unrecognized options must be removed: %s" % others[2:])
    
     exitCode = 1
     try:
-        scmWork = createScmWork(options.workPath)
-        for sourceFolderPath in others:
-            scunch(sourceFolderPath, scmWork)
+        scmWork = createScmWork(workFolderPath)
+        scunch(sourceFolderPath, scmWork)
+        if options.isCommit:
+            scmWork.commit("", options.commitMessage)
         exitCode = 0
     except (EnvironmentError, ScmError), error:
         _log.error("%s", error)
