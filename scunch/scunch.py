@@ -378,6 +378,7 @@ Version 0.2, 04-Jan-2011
 * Added support for moving files with same name instead of performing a
   simple add/remove. This preserves the version history on the new file.
   Use ``--move=none`` to get the old behavior.
+* Cleaned up logging output.
 
 Version 0.1, 03-Jan-2011
 
@@ -434,7 +435,7 @@ def run(commandAndOptions, returnStdout=False, cwd=None):
     result = None
     commandName = commandAndOptions[0]
     commandText = _humanReadableCommand(commandAndOptions)
-    _log.info("run: %s", commandText)
+    _log.debug("run: %s", commandText)
     with tempfile.TemporaryFile(prefix="scunch_stderr_") as stderrLines:
         if returnStdout:
             stdoutLines = tempfile.TemporaryFile(prefix="scunch_stdout_")
@@ -851,14 +852,14 @@ class ScmPuncher(object):
         # Collect external items.
         self.externalItems = listFolderItems(externalFolderPath)
         self.externalItems = _sortedFolderItems(self.externalItems)
-        _log.info("external items:")
+        _log.info('found %d external items in "%s"', len(self.externalItems), self._externalFolderPath)
         for item in self.externalItems:
             _log.debug('  %s', item)
 
         # Collect items in work copy.
         self.workItems = self.scmWork.listFolderItems(relativeWorkFolderPath)
         self.workItems = _sortedFolderItems(self.workItems)
-        _log.debug("work items:")
+        _log.info('found %d work items in "%s"', len(self.workItems), self.scmWork.absolutePath("work path", relativeWorkFolderPath))
         for item in self.workItems:
             _log.debug('  %s', item)
         
@@ -930,7 +931,12 @@ class ScmPuncher(object):
         _log.info("punch modifications into work copy")
         if self._removedItems:
             _log.info("remove %d items", len(self._removedItems))
-            relativePathsToRemove = [itemToRemove.relativePath for itemToRemove in self._removedItems]
+            relativePathsToRemove = []
+            for itemToRemove in self._removedItems:
+                relativePathToRemove = itemToRemove.relativePath
+                _log.info('  remove "%s"', relativePathToRemove)
+                relativePathsToRemove.append(relativePathToRemove)
+            # Remove folder and files  using a single command call.
             self.scmWork.remove(relativePathsToRemove, recursive=True, force=True)
         if self._modifiedItems:
             _log.info("modify %d items", len(self._modifiedItems))
@@ -938,25 +944,28 @@ class ScmPuncher(object):
                 if itemToModify.kind == FolderItem.Folder:
                     makeFolder(self._workPathFor(itemToModify))
                 else:
+                    _log.info('  copy "%s"', itemToModify.relativePath)
                     self._copyItemFromExternalToWork(itemToModify)
         if self._addedItems:
-            _log.info("add %d items", len(self._modifiedItems))
+            _log.info("add %d items", len(self._addedItems))
+            relativePathsToAdd = []
             # Create added folders and copy added files.
             for itemToAdd in self._addedItems:
+                relativePathToAdd = itemToAdd.relativePath
+                _log.info('  add "%s"', relativePathToAdd)
+                relativePathsToAdd.append(relativePathToAdd)
                 if itemToAdd.kind == FolderItem.Folder:
                     makeFolder(self._workPathFor(itemToAdd))
                 else:
                     self._copyItemFromExternalToWork(itemToAdd)
-            # Add folders and files to SCM.
-            for itemToAdd in self._addedItems:
-                _log.info('  add "%s"', itemToAdd.relativePath)
-                relativePathsToAdd = [itemToAdd.relativePath for itemToAdd in self._addedItems]
-                self.scmWork.add(relativePathsToAdd, recursive=False)
+            # Add folders and files to SCM using a single command call.
+            self.scmWork.add(relativePathsToAdd, recursive=False)
         if self._movedItems:
             _log.info("move %d items", len(self._movedItems))
             for sourceItemToMove, targetItemToMove in self._movedItems:
                 sourcePath = sourceItemToMove.relativePath
                 targetPath = os.path.dirname(targetItemToMove.relativePath)
+                _log.info('  move "%s" from "%s" to "%s"', os.path.basename(sourcePath), os.path.dirname(sourcePath), targetPath)
                 self.scmWork.move(sourcePath, targetPath, force=True)
                 self._copyItemFromExternalToWork(targetItemToMove)
 
@@ -1041,7 +1050,7 @@ class ScmWork(object):
         return result
 
     def add(self, relativePathsToAdd, recursive=True):
-        _log.info("add: %s", str(relativePathsToAdd))
+        _log.debug("add: %s", str(relativePathsToAdd))
         assert relativePathsToAdd is not None
         svnAddCommand = ["svn", "add", "--non-interactive"]
         if not recursive:
@@ -1064,13 +1073,13 @@ class ScmWork(object):
             self.add(pathsToAdd, True)
 
     def mkdir(self, relativeFolderPathToCreate):
-        _log.info("mkdir: %s", relativeFolderPathToCreate)
+        _log.debug("mkdir: %s", relativeFolderPathToCreate)
         absoluteFolderPathToCreate = self.absolutePath("folder to create", relativeFolderPathToCreate)
         svnMkdirCommand = ["svn", "mkdir", "--non-interactive", absoluteFolderPathToCreate]
         run(svnMkdirCommand, cwd=self.localTargetPath)
 
     def move(self, relativeSourcePaths, relativeTargetPath, force=False):
-        _log.info('move: %s to "%s"', str(relativeSourcePaths), relativeTargetPath)
+        _log.debug('move: %s to "%s"', str(relativeSourcePaths), relativeTargetPath)
         assert relativeSourcePaths is not None
         assert relativeTargetPath is not None
         svnAddCommand = ["svn", "move", "--non-interactive"]
@@ -1084,23 +1093,23 @@ class ScmWork(object):
         run(svnAddCommand, cwd=self.localTargetPath)
 
     def remove(self, relativePathsToRemove, recursive=True, force=False):
-        _log.info("remove: %s", str(relativePathsToRemove))
+        _log.debug("remove: %s", str(relativePathsToRemove))
         assert relativePathsToRemove is not None
-        svnAddCommand = ["svn", "remove", "--non-interactive"]
+        svnRemoveCommand = ["svn", "remove", "--non-interactive"]
         if force:
-            svnAddCommand.append("--force")
+            svnRemoveCommand.append("--force")
         if not recursive:
-            svnAddCommand.append("--non-recursive")
+            svnRemoveCommand.append("--non-recursive")
         if isinstance(relativePathsToRemove, types.StringTypes):
-            svnAddCommand.append(relativePathsToRemove)
+            svnRemoveCommand.append(relativePathsToRemove)
         else:
-            svnAddCommand.extend(relativePathsToRemove)
-        run(svnAddCommand, cwd=self.localTargetPath)
+            svnRemoveCommand.extend(relativePathsToRemove)
+        run(svnRemoveCommand, cwd=self.localTargetPath)
 
     def commit(self, relativePathsToCommit, message, recursive=True):
         assert relativePathsToCommit is not None
         assert message is not None
-        _log.info("commit: %s", str(relativePathsToCommit))
+        _log.debug("commit: %s", str(relativePathsToCommit))
         svnCommitCommand = ["svn", "commit", "--non-interactive"]
         if not recursive:
             svnCommitCommand.append("--non-recursive")
@@ -1219,7 +1228,6 @@ def listRelativePaths(folderToListPath, elements=[]):
 
 def scunch(sourceFolderPath, scmWork, move=ScmPuncher.MoveName):
     assert sourceFolderPath is not None
-    _log.info("punch %r", sourceFolderPath)
     puncher = ScmPuncher(scmWork)
     puncher.punch(sourceFolderPath, move=move)
 
