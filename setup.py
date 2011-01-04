@@ -15,7 +15,7 @@ Upload release to PyPI::
 
 Tag a release::
 
-  $ git tag -a --message "Tagged version 0.x." 0.x
+  $ git tag -a -m "Tagged version 0.x." 0.x
   $ git push --tags
 """
 # Copyright (C) 2011 Thomas Aglassinger
