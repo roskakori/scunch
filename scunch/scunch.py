@@ -60,24 +60,24 @@ Basic usage
 
 To read a summary of the available options, run::
 
-  > scunch --help
+  $ scunch --help
 
 To "punch" the folder ``/tmp/ohsome`` into the work copy ``~/projects/ohsome``, run::
 
-  > scunch /tmp/ohsome ~/projects/ohsome
+  $ scunch /tmp/ohsome ~/projects/ohsome
 
 To do the same but also commit the changes, run::
 
-  > scunch --commit --message "Punched version 1.3.8." /tmp/ohsome ~/projects/ohsome
+  $ scunch --commit --message "Punched version 1.3.8." /tmp/ohsome ~/projects/ohsome
 
 To control how much details you can see during the punching, use ``--log.``. To see
 only warnings and errors, use::
 
-  > scunch --log=warning /tmp/ohsome ~/projects/ohsome
+  $ scunch --log=warning /tmp/ohsome ~/projects/ohsome
 
 To see a lot of details about the inner workings, use::
 
-  > scunch --log=debug /tmp/ohsome ~/projects/ohsome
+  $ scunch --log=debug /tmp/ohsome ~/projects/ohsome
 
 Possible values for ``--log`` are: ``debug``, ``info`` (the default),
 ``warning`` and ``error``.
@@ -123,8 +123,8 @@ any version management. If he deemed it useful to keep a certain state of
 the source code, he just copied it to a new folder and added a timestamp to
 the folder name::
 
-  > cd ~/projects
-  > ls
+  $ cd ~/projects
+  $ ls
   nifti
   nifti_2010-11-27
   nifti_2010-09-18
@@ -137,26 +137,26 @@ available.
 
 As a first step, Tim creates a local Subversion repository::
 
-  > mkdir /Users/tim/repositories
-  > svnadmin create /Users/tim/repositories/nifti
+  $ mkdir /Users/tim/repositories
+  $ svnadmin create /Users/tim/repositories/nifti
 
 Next he adds the project folders using the ``file`` protocol::
 
-  > svn mkdir file:///Users/tim/repositories/nifti/trunk  file:///Users/tim/repositories/nifti/tags  file:///Users/tim/repositories/nifti/branches
+  $ svn mkdir file:///Users/tim/repositories/nifti/trunk  file:///Users/tim/repositories/nifti/tags  file:///Users/tim/repositories/nifti/branches
 
 No he can check out the ``trunk`` to a temporary folder::
   
-  > cd /tmp
-  > svn checkout --username tim file:///Users/tim/repositories/nifti/trunk nifti
+  $ cd /tmp
+  $ svn checkout --username tim file:///Users/tim/repositories/nifti/trunk nifti
 
 Now it is time to punch the oldest version into the still empty work copy::
 
-  > scunch ~/projects/nifti_2010-05-23
+  $ scunch ~/projects/nifti_2010-05-23
 
 Tim reviews the changes to be committed. Unsurprisingly, there are only
 "add" operations::
 
-  > svn status
+  $ svn status
   A   setup.py
   A   README.txt
   A   nifti/
@@ -164,15 +164,15 @@ Tim reviews the changes to be committed. Unsurprisingly, there are only
 
 To commit this, Tim runs::
 
-  > svn commit --message "Added initial version."
+  $ svn commit --message "Added initial version."
 
 Then he proceeds with the other versions, where he lets ``scunch`` handle
 the commit all by itself::
 
-  > scunch --commit ~/projects/nifti_2010-07-03
-  > scunch --commit ~/projects/nifti_2010-08-18
-  > scunch --commit ~/projects/nifti_2010-11-27
-  > scunch --commit ~/projects/nifti
+  $ scunch --commit ~/projects/nifti_2010-07-03
+  $ scunch --commit ~/projects/nifti_2010-08-18
+  $ scunch --commit ~/projects/nifti_2010-11-27
+  $ scunch --commit ~/projects/nifti
 
 Now all the changes are nicely traceable in the repository. However, the
 timestamps use the time of the commit instead of the date when the source
@@ -190,7 +190,7 @@ are supposed to represent::
 To update the timestamp in the repository, Tim sets the revision property
 ``date`` accordingly::
 
-  > svn propset svn:date --revprop --revision 2 "2010-05-23 12:00:00Z" file:///Users/tim/repositories/nifti/trunk
+  $ svn propset svn:date --revprop --revision 2 "2010-05-23 12:00:00Z" file:///Users/tim/repositories/nifti/trunk
 
 Note that this only works with the ``file`` protocol. If you want to do the
 same on a repository using the ``http`` protocol, you have to install a
@@ -204,9 +204,9 @@ revision property ``log``.
 Once the repository is in shape, Tim can remove his current source code and
 replace it with the work copy::
 
-  > cd ~/projects
-  > mv nifti nifti_backup # Do not delete just yet in case something went wrong.
-  > svn checkout file:///Users/tim/repositories/nifti/trunk nifti
+  $ cd ~/projects
+  $ mv nifti nifti_backup # Do not delete just yet in case something went wrong.
+  $ svn checkout file:///Users/tim/repositories/nifti/trunk nifti
 
 Now Tim has a version controlled project where he can commit changes any
 time he wants.
@@ -247,7 +247,7 @@ Joe's company already has a Subversion repository for various projects, so
 as a first step he adds a new project to the repository and creates a new
 work copy on his computer::
 
-  > svn add --message "Added project folders for ohsome application by Vendor." http://svn.example.com/ohsome http://svn.example.com/ohsome/trunk http://svn.example.com/ohsome/tags http://svn.example.com/ohsome/branches
+  $ svn add --message "Added project folders for ohsome application by Vendor." http://svn.example.com/ohsome http://svn.example.com/ohsome/trunk http://svn.example.com/ohsome/tags http://svn.example.com/ohsome/branches
 
 This creates a project folder and the usual trunk, tags and branches
 folders. For the time being, Joe intends to use only the trunk to hold the
@@ -255,40 +255,40 @@ most current version of the "ohsome" application.
 
 Next, Joe creates a yet empty work copy in a local folder on his computer::
 
-  > cd ~/projects
-  > svn checkout http://svn.example.com/ohsome/trunk ohsome
+  $ cd ~/projects
+  $ svn checkout http://svn.example.com/ohsome/trunk ohsome
 
 Now he copies all the files from the web server to the work copy::
 
-  > cp -r /web/ohsome/* ~/projects/ohsome 
+  $ cp -r /web/ohsome/* ~/projects/ohsome 
 
 Although the files are now in the work copy, the are not yet under version
 management. So Joe adds almost all the files except one folder named "temp" that
 according to his knowledge contains only temporary files generated by the
 web application::
 
-  > cd ~/projects/ohsome
-  > svn propset svn:ignore temp .
-  > svn add ...
+  $ cd ~/projects/ohsome
+  $ svn propset svn:ignore temp .
+  $ svn add ...
 
 After that, he manually commits the current state of the web server::
 
-  > svn commit --message "Added initial application version 1.3.7."
+  $ svn commit --message "Added initial application version 1.3.7."
   
 For the time being, Joe is done.
 
 A couple of weeks later, the vendor send a ZIP archive with the application
 version 1.3.8. As usual, Joe extracts the archive::
 
-  > cd /tmp
-  > unzip ~/Downloads/ohsome_1.3.8.zip
+  $ cd /tmp
+  $ unzip ~/Downloads/ohsome_1.3.8.zip
 
 The result of this is a folder /tmp/ohsome containing all the files and
 folders to be copied to the web server under /web/ohsome/. However, this
 time Joe wants to review the changes first by "punching" them into his
 work copy. So he runs ``scunch`` with the following options::
 
-  > scunch /tmp/ohsome ~/projects/ohsome
+  $ scunch /tmp/ohsome ~/projects/ohsome
 
 This "punches" all the changes from folder /tmp/ohsome (where the ZIP
 archive got extracted) to the work copy in ~/projects/ohsome.
@@ -299,25 +299,25 @@ As a result Joe can review the changes. He uses TortoiseSVN for that, but
 Once he finished his review without noticing any obvious issues, he
 manually commits the changes::
 
-  > cd ~/projects/ohsome
-  > svn commit --message "Punched version 1.3.8."
+  $ cd ~/projects/ohsome
+  $ svn commit --message "Punched version 1.3.8."
 
 When version 1.3.9 ships, Joe decides that he might as well review the
 changes directly in the repository after the commit. So this time he simply
 uses::
 
-  > cd /tmp
-  > unzip ~/Downloads/ohsome_1.3.9.zip
-  > scunch --commit --message "Punched version 1.3.9."
+  $ cd /tmp
+  $ unzip ~/Downloads/ohsome_1.3.9.zip
+  $ scunch --commit --message "Punched version 1.3.9."
 
 Joe can then use ``svn log`` to look for particular points of interest.
 For instance, to find modified configuration files (matching the pattern \*.cfg)::
 
-  > svn log --verbose --limit 1 http://svn.example.com/ohsome/trunk | grep "\\.cfg$"
+  $ svn log --verbose --limit 1 http://svn.example.com/ohsome/trunk | grep "\\.cfg$"
 
 To get a list of Removed files and folders::
 
-  > svn log --verbose --limit 1 http://svn.example.com/ohsome/trunk | grep "^   D" 
+  $ svn log --verbose --limit 1 http://svn.example.com/ohsome/trunk | grep "^   D" 
 
 (Note: Here, ``grep`` looks for three blanks and a "D" for "deleted" at the beginning of a line.)
  
