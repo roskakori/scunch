@@ -325,21 +325,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-# Developer cheat sheet:
-#
-# Create the installer archive:
-#
-# > python setup.py sdist --formats=zip
-#
-# Upload release to PyPI:
-#
-# > python scunch/test_scunch.py
-# > python setup.py sdist --formats=zip upload
-#
-#  Tag a release:
-# > git tag -a --message "Tagged version 0.x." 0.x
-# > git push --tags
 import difflib
 import errno
 import logging
@@ -355,7 +340,7 @@ import urlparse
 import xml.sax
 from xml.sax.handler import ContentHandler
 
-__version__ = "0.1"
+__version__ = "0.2"
 
 _log = logging.getLogger("scunch")
 
@@ -363,7 +348,7 @@ def _humanReadableCommand(commandAndOptions):
     result = ""
     isFirstItem = True
     for commandItem in commandAndOptions:
-        if " " in commandItem:
+        if (" " in commandItem) or not commandItem:
             commandItem = '"%s"' % commandItem
         if isFirstItem:
             isFirstItem = False
@@ -601,6 +586,7 @@ class FolderItem(object):
     Folder = 'folder'
 
     def __init__(self, elements=[], name="", baseFolderPath=""):
+        # TODO: Consider removing parameter ``name``.
         assert elements is not None
         assert name is not None
         assert baseFolderPath is not None
@@ -608,7 +594,13 @@ class FolderItem(object):
         itemElements = list(elements)
         if name:
             itemElements.append(name)
+
         self.elements = tuple(itemElements)
+        # TODO: Change attribute ``name``to read only property.
+        if self.elements:
+            self.name = self.elements[-1]
+        else:
+            self.name = ""
         self.relativePath = resolvedPathElements(self.elements)
         self.path = self.absolutePath(baseFolderPath)
         try:
@@ -710,6 +702,10 @@ class ScmPuncher(object):
     """
     Puncher to transform a work copy according to the current state of an external folder.
     """
+    MoveName = "name"
+    MoveNone = "none"
+    _ValidMoveModes = set((MoveName, MoveNone))
+
     def __init__(self, scmWork):
         assert scmWork is not None
         self.scmWork = scmWork
@@ -720,7 +716,9 @@ class ScmPuncher(object):
         self.workItems = None
         self._externalFolderPath = None
         self._addedItems = None
+        self._copiedItems = None
         self._modifiedItems = None
+        self._movedItems = None
         self._removedItems = None
 
     def _isInLastRemovedFolder(self, itemToCheck):
@@ -766,7 +764,8 @@ class ScmPuncher(object):
             else:
                 _log.debug('skip modified item in removed folder: "%s"', itemToModify.relativePath)
 
-    def _copyItem(self, itemToCopy):
+    def _copyItemFromExternalToWork(self, itemToCopy):
+        assert itemToCopy is not None
         externalPathOfItemToCopy = self._externalPathFor(itemToCopy)
         workPathOfItemToCopy = self._workPathFor(itemToCopy)
         shutil.copy2(externalPathOfItemToCopy, workPathOfItemToCopy)
@@ -807,7 +806,7 @@ class ScmPuncher(object):
             if operation == 'insert':
                 self._add(self.externalItems[j1:j2])
             elif operation == 'equal':
-                self._modify(self.externalItems[i1:i2])
+                self._modify(self.externalItems[j1:j2])
             elif operation == 'delete':
                 self._remove(self.workItems[i1:i2])
             elif operation == 'replace':
@@ -816,6 +815,19 @@ class ScmPuncher(object):
             else:
                 assert False, "operation=%r" % operation
 
+    def _createNameAndKindToListOfFolderItemsMap(self, items):
+        result = {}
+        for item in items:
+            itemName = item.name
+            itemKind = item.kind
+            itemKey = (itemName, itemKind)
+            existingItems = result.get(itemKey)
+            if existingItems is None:
+                result[itemKey] = [item]
+            else:
+                existingItems.append(item)
+        return result
+            
     def _setCopiedAndMovedItems(self):
         assert self._externalFolderPath is not None
         assert self.workItems is not None
@@ -823,8 +835,26 @@ class ScmPuncher(object):
 
         self._copiedItems = []
         self._movedItems = []
-
-    def _applyAddedModifiedRemovedItems(self):
+        removedNameMap = self._createNameAndKindToListOfFolderItemsMap(self._removedItems)
+        addedNameMap = self._createNameAndKindToListOfFolderItemsMap(self._addedItems)
+        
+        for possiblyMovedItemKey, possiblyMovedItems in addedNameMap.items():
+            possiblyMovedItemKind = possiblyMovedItemKey[1]
+            correspondingRemovedItems = removedNameMap.get(possiblyMovedItemKey)
+            if correspondingRemovedItems:
+                # TODO: Process all moved items of the same name as long as there is both an added and removed item.
+                if possiblyMovedItemKind == FolderItem.File:
+                        sourceItem = correspondingRemovedItems[0]
+                        targetItem = possiblyMovedItems[0]
+                        _log.debug('schedule for move: "%s" to "%s"', sourceItem.relativePath, targetItem.relativePath)
+                        self._removedItems.remove(sourceItem)
+                        self._addedItems.remove(targetItem)
+                        self._movedItems.append((sourceItem, targetItem))
+                else:
+                    # TODO: Move folders in case the new folder contains all the item from the old folder (and possibly some more).
+                    pass
+        
+    def _applyChangedItems(self):
         _log.info("punch modifications into work copy")
         if self._removedItems:
             _log.info("remove %d items", len(self._removedItems))
@@ -836,7 +866,7 @@ class ScmPuncher(object):
                 if itemToModify.kind == FolderItem.Folder:
                     makeFolder(self._workPathFor(itemToModify))
                 else:
-                    self._copyItem(itemToModify)
+                    self._copyItemFromExternalToWork(itemToModify)
         if self._addedItems:
             _log.info("add %d items", len(self._modifiedItems))
             # Create added folders and copy added files.
@@ -844,19 +874,27 @@ class ScmPuncher(object):
                 if itemToAdd.kind == FolderItem.Folder:
                     makeFolder(self._workPathFor(itemToAdd))
                 else:
-                    self._copyItem(itemToAdd)
+                    self._copyItemFromExternalToWork(itemToAdd)
             # Add folders and files to SCM.
             for itemToAdd in self._addedItems:
                 _log.info('  add "%s"', itemToAdd.relativePath)
                 relativePathsToAdd = [itemToAdd.relativePath for itemToAdd in self._addedItems]
                 self.scmWork.add(relativePathsToAdd, recursive=False)
+        if self._movedItems:
+            _log.info("move %d items", len(self._movedItems))
+            for sourceItemToMove, targetItemToMove in self._movedItems:
+                sourcePath = sourceItemToMove.relativePath
+                targetPath = os.path.dirname(targetItemToMove.relativePath)
+                self.scmWork.move(sourcePath, targetPath, force=True)
+                self._copyItemFromExternalToWork(targetItemToMove)
 
-    def punch(self, externalFolderPath, relativeWorkFolderPath=""):
+    def punch(self, externalFolderPath, relativeWorkFolderPath="", move=MoveName):
         try:
             self._setExternalAndWorkItems(externalFolderPath, relativeWorkFolderPath)
             self._setAddedModifiedRemovedItems()
-            self._setCopiedAndMovedItems()
-            self._applyAddedModifiedRemovedItems()
+            if move != ScmPuncher.MoveNone:
+                self._setCopiedAndMovedItems()
+            self._applyChangedItems()
         finally:
             self._clear()
 
@@ -959,6 +997,20 @@ class ScmWork(object):
         svnMkdirCommand = ["svn", "mkdir", "--non-interactive", absoluteFolderPathToCreate]
         run(svnMkdirCommand, cwd=self.localTargetPath)
 
+    def move(self, relativeSourcePaths, relativeTargetPath, force=False):
+        _log.info('move: %s to "%s"', str(relativeSourcePaths), relativeTargetPath)
+        assert relativeSourcePaths is not None
+        assert relativeTargetPath is not None
+        svnAddCommand = ["svn", "move", "--non-interactive"]
+        if force:
+            svnAddCommand.append("--force")
+        if isinstance(relativeSourcePaths, types.StringTypes):
+            svnAddCommand.append(relativeSourcePaths)
+        else:
+            svnAddCommand.extend(relativeSourcePaths)
+        svnAddCommand.append(relativeTargetPath)
+        run(svnAddCommand, cwd=self.localTargetPath)
+
     def remove(self, relativePathsToRemove, recursive=True, force=False):
         _log.info("remove: %s", str(relativePathsToRemove))
         assert relativePathsToRemove is not None
@@ -1024,7 +1076,7 @@ class ScmWork(object):
         used internally by the SCM (such as for example ".svn" for Subversion).
         """
         def isAcceptable(folderItem):
-            return not self.isSpecialPath(folderItem.elements[-1])
+            return not self.isSpecialPath(folderItem.name)
 
         if relativeFolderToList:
             raise NotImplementedError
@@ -1093,11 +1145,11 @@ def listRelativePaths(folderToListPath, elements=[]):
         else:
                 yield ('file', tuple(itemElements))
 
-def scunch(sourceFolderPath, scmWork):
+def scunch(sourceFolderPath, scmWork, move=ScmPuncher.MoveName):
     assert sourceFolderPath is not None
     _log.info("punch %r", sourceFolderPath)
-    print sorted(scmWork.list(""))
-    raise NotImplementedError()
+    puncher = ScmPuncher(scmWork)
+    puncher.punch(sourceFolderPath, move=move)
 
 _LogLevelNameMap = {
     'debug': logging.DEBUG,
@@ -1122,6 +1174,7 @@ def main(arguments=None):
     parser.add_option("-c", "--commit", action="store_true", dest="isCommit", help="after punching the changes into the work copy, commit them")
     parser.add_option("-L", "--log", default='info', dest="logLevel", metavar="LEVEL", type="choice", choices=_LogLevelNameMap.keys(), help='logging level (default: "%default")')
     parser.add_option("-m", "--message", default="Scunched.", dest="commitMessage", metavar="TEXT", help='text for commit message (default: "%default")')
+    parser.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help='criteria to detect moved files (default: "%default")')
     (options, others) = parser.parse_args(actualArguments[1:])
     othersCount = len(others)
     if othersCount == 0:
@@ -1140,7 +1193,7 @@ def main(arguments=None):
     exitCode = 1
     try:
         scmWork = createScmWork(workFolderPath)
-        scunch(sourceFolderPath, scmWork)
+        scunch(sourceFolderPath, scmWork, move=options.moveMode)
         if options.isCommit:
             scmWork.commit("", options.commitMessage)
         exitCode = 0

@@ -108,6 +108,32 @@ class _SvnTest(_ScmTest):
         self.scmWork.addUnversioned("")
         self.scmWork.commit("", "Added test files")
 
+class ScunchTest(unittest.TestCase):
+    def testScunchWithClone(self):
+        scmTest = _SvnTest("scunchWithClone")
+        scmWork = scmTest.scmWork
+
+        testScunchWithClonePath = scmTest.createTestFolder("testScunch")
+        scmWork.exportTo(testScunchWithClonePath, clear=True)
+
+        scunch.scunch(testScunchWithClonePath, scmWork)
+        # TODO: Assert that all files in the work copy have a status of 'normal'.
+
+    def testScunchWithChanges(self):
+        scmTest = _SvnTest("scunchWithClone")
+        scmWork = scmTest.scmWork
+
+        testScunchWithChangesPath = scmTest.createTestFolder("testScunch")
+        scmWork.exportTo(testScunchWithChangesPath, clear=True)
+
+        readMeTooPath = os.path.join(testScunchWithChangesPath, "ReadMeToo.txt")
+        scmTest.writeTextFile(readMeTooPath, ["You really should", "read me, too."])
+        whilePyPath = os.path.join(testScunchWithChangesPath, "loops", "while.py")
+        os.remove(whilePyPath)
+
+        scunch.scunch(testScunchWithChangesPath, scmWork)
+        # Assert that work copy contains an added and a removed file.
+
 class ScmTest(unittest.TestCase):
 
     def testScm(self):
@@ -205,6 +231,26 @@ class ScmTest(unittest.TestCase):
 
         self._assertNonNormalStatusCount(scmWork, scunch.ScmStatus.Removed, 3)
         self._testAfterPunch(testPunchWithRemovePath, scmWork)
+
+    def testPunchWithMovedFiles(self):
+        scmTest = _SvnTest("punchWithMovedFiles")
+        scmWork = scmTest.scmWork
+
+        testPunchWithMovedFilesPath = scmTest.createTestFolder("testPunchWithMovedFiles")
+        scmWork.exportTo(testPunchWithMovedFilesPath, clear=True)
+        oldReadMeTxtPath = os.path.join(testPunchWithMovedFilesPath, "ReadMe.txt")
+        newReadMeTxtPath = os.path.join(testPunchWithMovedFilesPath, "loops", "ReadMe.txt")
+        shutil.move(oldReadMeTxtPath, newReadMeTxtPath)
+        oldWhilePyPath = os.path.join(testPunchWithMovedFilesPath, "loops", "while.py")
+        newWhilePyPath = os.path.join(testPunchWithMovedFilesPath, "while.py")
+        shutil.move(oldWhilePyPath, newWhilePyPath)
+
+        movingPuncher = scunch.ScmPuncher(scmWork)
+        movingPuncher.punch(testPunchWithMovedFilesPath)
+
+        # self._assertNonNormalStatusCount(scmWork, scunch.ScmStatus.Removed, 2)
+        self._testAfterPunch(testPunchWithMovedFilesPath, scmWork)
+
 
     def testIsInRemovedFolder(self):
         scmTest = _SvnTest("puncher")
