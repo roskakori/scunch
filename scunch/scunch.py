@@ -1253,7 +1253,7 @@ def main(arguments=None):
     parser = optparse.OptionParser(usage=_Usage, version="%prog " + __version__)
     parser.add_option("-c", "--commit", action="store_true", dest="isCommit", help="after punching the changes into the work copy, commit them")
     parser.add_option("-L", "--log", default='info', dest="logLevel", metavar="LEVEL", type="choice", choices=_LogLevelNameMap.keys(), help='logging level (default: "%default")')
-    parser.add_option("-m", "--message", default="Scunched.", dest="commitMessage", metavar="TEXT", help='text for commit message (default: "%default")')
+    parser.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help='text for commit message (default: "%default")')
     parser.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help='criteria to detect moved files (default: "%default")')
     (options, others) = parser.parse_args(actualArguments[1:])
     othersCount = len(others)
