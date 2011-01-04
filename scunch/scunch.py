@@ -368,6 +368,20 @@ more details.
 
 You should have received a copy of the GNU Lesser General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+Version history
+---------------
+
+Version 0.2, 04-Jan-2011
+
+* Fixed ``NotImplementedError``.
+* Added support for moving files with same name instead of performing a
+  simple add/remove. This preserves the version history on the new file.
+  Use ``--move=none`` to get the old behavior.
+
+Version 0.1, 03-Jan-2011
+
+* Initial release.
 """
 # Copyright (C) 2011 Thomas Aglassinger
 #
