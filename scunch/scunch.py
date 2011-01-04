@@ -4,14 +4,18 @@ Scunch
 ======
 
 Scunch is a tool to "punch" the files from an unversioned folder into a
-working copy of a software configuration management system (SCM) and apply the
-necessary SCM operations such as "add" and "remove".
+working copy of a software configuration management system (SCM) and apply
+the necessary SCM operations such as "add" and "remove".
 
 Intended scenarios of use are:
 
-* Automatic version management of external sources delivered by a third party.
-* Automatic version management of typically unversioned centralized resources such as server configuration files.
-* Pseudo version management for users that have issues with manual version management (usual suspects are: managers, graphical artists, mainframe elders, ...).
+* Automatic version management of external sources delivered by a third
+  party.
+* Automatic version management of typically unversioned centralized
+  resources such as server configuration files.
+* Pseudo version management for users that have issues with manual version
+  management (usual suspects are: managers, graphical artists, mainframe
+  elders, ...).
 
 Currently supported SCM's are:
 
@@ -25,7 +29,7 @@ name used during early development was "scmpunch").
 Installation
 ------------
 
-To install scunch, you need:
+To install ``scunch``, you need:
 
 * Python 2.6 or any later 2.x version, available from
   <http://www.python.org/>.
@@ -34,7 +38,7 @@ To install scunch, you need:
 
 Then you can simply run::
 
-  easy_install scunch
+  $ easy_install scunch
 
 If you prefer a manual installation, you can obtain the ZIP archive from
 <http://pypi.python.org/pypi/scunch/>.  Furthermore the source code is
