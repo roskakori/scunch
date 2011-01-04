@@ -17,13 +17,12 @@ Tests for scunch.
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import logging
 import os
-import subprocess
 import shutil
 import unittest
 
-import scunch
-
 from urlparse import urljoin
+
+import scunch
 
 _log = logging.getLogger("test")
 
@@ -33,8 +32,8 @@ def makeEmptyFolder(folderPathToCreate):
 
 _BaseTestFolder = os.path.abspath("test")
 
-class _ScmTest(object):
-    def __init__(self, project, testFolderPath=_BaseTestFolder):
+class _ScmTest(unittest.TestCase):
+    def setUpProject(self, project, testFolderPath=_BaseTestFolder):
         """
         Create a local repository for ``project``, possibly removing any existing repository
         before. Next, checkout a working copy in ``testFolderPath``.
@@ -44,14 +43,10 @@ class _ScmTest(object):
         
         self.project = project
         self.testFolderPath = testFolderPath
+        self.scmWork = None
 
-        _log.info("clean up test folder at %r", self.testFolderPath)
+        _log.debug("clean up test folder at %r", self.testFolderPath)
         makeEmptyFolder(self.testFolderPath)
-
-    def run(self, commandAndOptions):
-        assert commandAndOptions
-        _log.info("run: %s", " ".join(commandAndOptions))
-        subprocess.check_call(commandAndOptions)
 
     def createTestFolder(self, name):
         """An empty folder named ``name`` in the test folder."""
@@ -68,10 +63,33 @@ class _ScmTest(object):
             for line in lines:
                 targetFile.write(line)
                 targetFile.write(os.linesep)
+
+    def assertNonNormalStatus(self, expectedStatusToCountMap):
+        # TODO: Move to some more appropriate place, for instance something like ``_ScmWorkTest``.
+        assert self.scmWork is not None, "scmWork must be set"
+        assert expectedStatusToCountMap is not None
+
+        actualStatusToCountMap = {}        
+        for statusInfo in self.scmWork.status(""):
+            actualStatus = statusInfo.status
+            if actualStatus != scunch.ScmStatus.Normal:
+                if not actualStatus in expectedStatusToCountMap:
+                    self.fail(u'status for "%s" is %r but must be one of: %s' % (statusInfo.path, actualStatus, expectedStatusToCountMap.keys()))
+                existingCount = actualStatusToCountMap.get(actualStatus)
+                if existingCount is None:
+                    actualStatusToCountMap[actualStatus] = 1
+                else:
+                    actualStatusToCountMap[actualStatus] = existingCount + 1
+        self.assertEqual(actualStatusToCountMap, expectedStatusToCountMap)
+                
         
 class _SvnTest(_ScmTest):
-    def __init__(self, project, testFolderPath=_BaseTestFolder):
-        super(_SvnTest, self).__init__(project, testFolderPath)
+    def setUpProject(self, project, testFolderPath=_BaseTestFolder):
+        """
+        Create a Subversion repository containing a few files and a work copy with its current
+        contents checked out.
+        """
+        super(_SvnTest, self).setUpProject(project, testFolderPath)
         storagePath = os.path.join(self.testFolderPath, "svnRepository", self.project)
         storageQualifier = urljoin("file://localhost/", storagePath)
         self._scmStorage = scunch.ScmStorage(storageQualifier)
@@ -102,75 +120,63 @@ class _SvnTest(_ScmTest):
         mediaFolderPath = self.scmWork.absolutePath("test folder path", "media")
         scunch.makeFolder(mediaFolderPath)
         speechHtmlPath = os.path.join(loopsFolderPath, "speech.html")
-        self.writeTextFile(speechHtmlPath, ["<html><head><title>A great speech</title></head><body>", "<h1>A great speech</h1>", "<p>Ahem...</p>", "</body></html>"])
+        self.writeTextFile(speechHtmlPath, ["<html><head><title>A great speech</title></head><body>", "<h1>A great speech</h1>", "<p>Uhm...</p>", "</body></html>"])
         # TODO: Add binary PNG test file.
 
         self.scmWork.addUnversioned("")
         self.scmWork.commit("", "Added test files")
 
-class ScunchTest(unittest.TestCase):
+class ScunchTest(_SvnTest):
+    """
+    TestCase for `scunch.scunch()`.
+    """
     def testScunchWithClone(self):
-        scmTest = _SvnTest("scunchWithClone")
-        scmWork = scmTest.scmWork
+        self.setUpProject("scunchWithClone")
+        scmWork = self.scmWork
 
-        testScunchWithClonePath = scmTest.createTestFolder("testScunch")
+        testScunchWithClonePath = self.createTestFolder("testScunch")
         scmWork.exportTo(testScunchWithClonePath, clear=True)
 
         scunch.scunch(testScunchWithClonePath, scmWork)
-        # TODO: Assert that all files in the work copy have a status of 'normal'.
+        self.assertNonNormalStatus({})
 
     def testScunchWithChanges(self):
-        scmTest = _SvnTest("scunchWithClone")
-        scmWork = scmTest.scmWork
+        self.setUpProject("scunchWithChanges")
+        scmWork = self.scmWork
 
-        testScunchWithChangesPath = scmTest.createTestFolder("testScunch")
+        testScunchWithChangesPath = self.createTestFolder("testScunch")
         scmWork.exportTo(testScunchWithChangesPath, clear=True)
 
         readMeTooPath = os.path.join(testScunchWithChangesPath, "ReadMeToo.txt")
-        scmTest.writeTextFile(readMeTooPath, ["You really should", "read me, too."])
+        self.writeTextFile(readMeTooPath, ["You really should", "read me, too."])
         whilePyPath = os.path.join(testScunchWithChangesPath, "loops", "while.py")
         os.remove(whilePyPath)
 
         scunch.scunch(testScunchWithChangesPath, scmWork)
-        # Assert that work copy contains an added and a removed file.
+        self.assertNonNormalStatus({scunch.ScmStatus.Added: 1, scunch.ScmStatus.Removed: 1})
 
-class ScmTest(unittest.TestCase):
-
-    def testScm(self):
-        scmTest = _SvnTest("hugo")
-        scmWork = scmTest.scmWork
-
-    def _assertNonNormalStatusCount(self, scmWork, expectedNonNormalStatus, expectedStatusCount):
-        assert scmWork is not None
-        assert expectedStatusCount is not None
-        assert expectedStatusCount >= 0
-
-        nonNormalStatusCount = 0
-        for statusInfo in scmWork.status(""):
-            actualStatus = statusInfo.status
-            if actualStatus != scunch.ScmStatus.Normal:
-                nonNormalStatusCount += 1
-                self.assertEqual(actualStatus, expectedNonNormalStatus, u'status for "%s" is %r but must be %r' % (statusInfo.path, actualStatus, expectedNonNormalStatus))
-        self.assertEqual(nonNormalStatusCount, expectedStatusCount)
-                
-    def _testAfterPunch(self, externalFolderPath, scmWork):
+class ScmPuncherTest(_SvnTest):
+    """
+    TestCase for `scunch.ScmPuncher`.
+    """
+    def _testAfterPunch(self, externalFolderPath):
         """
         Test that previously punched changes can be committed and a re-punch results in no further changes.
         """
+        assert self.scmWork is not None
         assert externalFolderPath is not None
-        assert scmWork is not None
         
-        scmWork.commit([""], "Punched recent changes.")
-        rePuncher = scunch.ScmPuncher(scmWork)
+        self.scmWork.commit([""], "Punched recent changes.")
+        rePuncher = scunch.ScmPuncher(self.scmWork)
         rePuncher.punch(externalFolderPath)
-        self._assertNonNormalStatusCount(scmWork, None, 0)
+        self.assertNonNormalStatus({})
         self.assertEqual(rePuncher.workItems, rePuncher.externalItems)
 
     def testPunchWithClone(self):
-        scmTest = _SvnTest("punchWithClone")
-        scmWork = scmTest.scmWork
+        self.setUpProject("punchWithClone")
+        scmWork = self.scmWork
 
-        testPunchWithClonePath = scmTest.createTestFolder("testPunchWithClone")
+        testPunchWithClonePath = self.createTestFolder("testPunchWithClone")
         scmWork.exportTo(testPunchWithClonePath, clear=True)
 
         cloningPuncher = scunch.ScmPuncher(scmWork)
@@ -178,46 +184,46 @@ class ScmTest(unittest.TestCase):
 
         self.assertEqual(cloningPuncher.workItems, cloningPuncher.externalItems)
 
-        self._assertNonNormalStatusCount(scmWork, None, 0)
-        self._testAfterPunch(testPunchWithClonePath, scmWork)
+        self.assertNonNormalStatus({})
+        self._testAfterPunch(testPunchWithClonePath)
 
     def testPunchWithModify(self):
-        scmTest = _SvnTest("punchWithModify")
-        scmWork = scmTest.scmWork
+        self.setUpProject("punchWithModify")
+        scmWork = self.scmWork
 
-        testPunchWithModifyPath = scmTest.createTestFolder("testPunchWithModify")
+        testPunchWithModifyPath = self.createTestFolder("testPunchWithModify")
         scmWork.exportTo(testPunchWithModifyPath, clear=True)
         readMeTxtPath = os.path.join(testPunchWithModifyPath, "ReadMe.txt")
-        scmTest.writeTextFile(readMeTxtPath, ["This is an updated version of the file", "with a different text."])
+        self.writeTextFile(readMeTxtPath, ["This is an updated version of the file", "with a different text."])
 
         modifyingPuncher = scunch.ScmPuncher(scmWork)
         modifyingPuncher.punch(testPunchWithModifyPath)
 
         self.assertEqual(modifyingPuncher.workItems, modifyingPuncher.externalItems)
 
-        self._assertNonNormalStatusCount(scmWork, scunch.ScmStatus.Modified, 1)
-        self._testAfterPunch(testPunchWithModifyPath, scmWork)
+        self.assertNonNormalStatus({scunch.ScmStatus.Modified: 1})
+        self._testAfterPunch(testPunchWithModifyPath)
 
     def testPunchWithAdd(self):
-        scmTest = _SvnTest("punchWithAdd")
-        scmWork = scmTest.scmWork
+        self.setUpProject("punchWithAdd")
+        scmWork = self.scmWork
 
-        testPunchWithAddPath = scmTest.createTestFolder("testPunchWithAdd")
+        testPunchWithAddPath = self.createTestFolder("testPunchWithAdd")
         scmWork.exportTo(testPunchWithAddPath, clear=True)
         readMeTooPath = os.path.join(testPunchWithAddPath, "ReadMeToo.txt")
-        scmTest.writeTextFile(readMeTooPath, ["You really should", "read me, too."])
+        self.writeTextFile(readMeTooPath, ["You really should", "read me, too."])
 
         addingPuncher = scunch.ScmPuncher(scmWork)
         addingPuncher.punch(testPunchWithAddPath)
 
-        self._assertNonNormalStatusCount(scmWork, scunch.ScmStatus.Added, 1)
-        self._testAfterPunch(testPunchWithAddPath, scmWork)
+        self.assertNonNormalStatus({scunch.ScmStatus.Added: 1})
+        self._testAfterPunch(testPunchWithAddPath)
 
     def testPunchWithRemove(self):
-        scmTest = _SvnTest("punchWithRemove")
-        scmWork = scmTest.scmWork
+        self.setUpProject("punchWithRemove")
+        scmWork = self.scmWork
 
-        testPunchWithRemovePath = scmTest.createTestFolder("testPunchWithRemove")
+        testPunchWithRemovePath = self.createTestFolder("testPunchWithRemove")
         scmWork.exportTo(testPunchWithRemovePath, clear=True)
         readMeTxtPath = os.path.join(testPunchWithRemovePath, "ReadMe.txt")
         os.remove(readMeTxtPath)
@@ -229,14 +235,14 @@ class ScmTest(unittest.TestCase):
         addingPuncher = scunch.ScmPuncher(scmWork)
         addingPuncher.punch(testPunchWithRemovePath)
 
-        self._assertNonNormalStatusCount(scmWork, scunch.ScmStatus.Removed, 3)
-        self._testAfterPunch(testPunchWithRemovePath, scmWork)
+        self.assertNonNormalStatus({scunch.ScmStatus.Removed: 3})
+        self._testAfterPunch(testPunchWithRemovePath)
 
     def testPunchWithMovedFiles(self):
-        scmTest = _SvnTest("punchWithMovedFiles")
-        scmWork = scmTest.scmWork
+        self.setUpProject("punchWithMovedFiles")
+        scmWork = self.scmWork
 
-        testPunchWithMovedFilesPath = scmTest.createTestFolder("testPunchWithMovedFiles")
+        testPunchWithMovedFilesPath = self.createTestFolder("testPunchWithMovedFiles")
         scmWork.exportTo(testPunchWithMovedFilesPath, clear=True)
         oldReadMeTxtPath = os.path.join(testPunchWithMovedFilesPath, "ReadMe.txt")
         newReadMeTxtPath = os.path.join(testPunchWithMovedFilesPath, "loops", "ReadMe.txt")
@@ -248,23 +254,8 @@ class ScmTest(unittest.TestCase):
         movingPuncher = scunch.ScmPuncher(scmWork)
         movingPuncher.punch(testPunchWithMovedFilesPath)
 
-        # self._assertNonNormalStatusCount(scmWork, scunch.ScmStatus.Removed, 2)
-        self._testAfterPunch(testPunchWithMovedFilesPath, scmWork)
-
-
-    def testIsInRemovedFolder(self):
-        scmTest = _SvnTest("puncher")
-        scmWork = scmTest.scmWork
-        matcherPath = scmTest.createTestFolder("puncher")
-        scmWork.exportTo(matcherPath, clear=True)
-        
-        identicalPuncher = scunch.ScmPuncher(scmWork)
-        identicalPuncher.punch(matcherPath)
-        
-        scmWork.exportTo(matcherPath, clear=True)
-        shutil.rmtree(os.path.join(matcherPath, "loops"))
-        removingPuncher = scunch.ScmPuncher(scmWork)
-        removingPuncher.punch(matcherPath)
+        self.assertNonNormalStatus({scunch.ScmStatus.Added: 2, scunch.ScmStatus.Removed: 2})
+        self._testAfterPunch(testPunchWithMovedFilesPath)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
