@@ -9,13 +9,13 @@ necessary SCM operations such as "add" and "remove".
 
 Intended scenarios of use are:
 
-  * Automatic version management of external sources delivered by a third party.
-  * Automatic version management of typically unversioned centralized resources such as server configuration files.
-  * Pseudo version management for users that have issues with manual version management (usual suspects are: managers, graphical artists, mainframe elders, ...).
+* Automatic version management of external sources delivered by a third party.
+* Automatic version management of typically unversioned centralized resources such as server configuration files.
+* Pseudo version management for users that have issues with manual version management (usual suspects are: managers, graphical artists, mainframe elders, ...).
 
 Currently supported SCM's are:
 
- * Subversion (svn)
+* Subversion (svn)
 
 Installation
 ------------
@@ -83,17 +83,17 @@ available.
 
 As a first step, Tim creates a local Subversion repository::
 
-  > mkdir /home/tim/repositories
-  > svnadmin create /home/tim/repositories
+  > mkdir /Users/tim/repositories
+  > svnadmin create /Users/tim/repositories/nifti
 
 Next he adds the project folders using the ``file`` protocol::
 
-  > svn mkdir file:///home/tim/repositories/nifti/trunk  file:///home/tim/repositories/nifti/tags  file:///home/tim/repositories/nifti/branches
+  > svn mkdir file:///Users/tim/repositories/nifti/trunk  file:///Users/tim/repositories/nifti/tags  file:///Users/tim/repositories/nifti/branches
 
 No he can check out the ``trunk`` to a temporary folder::
   
   > cd /tmp
-  > svn checkout --username tim file:///home/tim/repositories/nifti/trunk nifti
+  > svn checkout --username tim file:///Users/tim/repositories/nifti/trunk nifti
 
 Now it is time to punch the oldest version into the still empty work copy::
 
@@ -136,7 +136,7 @@ are supposed to represent::
 To update the timestamp in the repository, Tim sets the revision property
 ``date`` accordingly::
 
-  > svn propset svn:date --revprop --revision 2 "2010-05-23 12:00:00Z" file:///home/tim/repositories/nifti/trunk
+  > svn propset svn:date --revprop --revision 2 "2010-05-23 12:00:00Z" file:///Users/tim/repositories/nifti/trunk
 
 Note that this only works with the ``file`` protocol. If you want to do the
 same on a repository using the ``http`` protocol, you have to install a
@@ -152,7 +152,7 @@ replace it with the work copy::
 
   > cd ~/projects
   > mv nifti nifti_backup # Do not delete just yet in case something went wrong.
-  > svn checkout file:///home/tim/repositories/nifti/trunk nifti
+  > svn checkout file:///Users/tim/repositories/nifti/trunk nifti
 
 Now Tim has a version controlled project where he can commit changes any
 time he wants.
@@ -193,7 +193,7 @@ Joe's company already has a Subversion repository for various projects, so
 as a first step he adds a new project to the repository and creates a new
 work copy on his computer::
 
-  > svn add --message "Added project folders for ohsome application by Vendor." http://svn.joescompany.com/ohsome http://svn.joescompany.com/ohsome/trunk http://svn.joescompany.com/ohsome/tags http://svn.joescompany.com/ohsome/branches
+  > svn add --message "Added project folders for ohsome application by Vendor." http://svn.example.com/ohsome http://svn.example.com/ohsome/trunk http://svn.example.com/ohsome/tags http://svn.example.com/ohsome/branches
 
 This creates a project folder and the usual trunk, tags and branches
 folders. For the time being, Joe intends to use only the trunk to hold the
@@ -202,7 +202,7 @@ most current version of the "ohsome" application.
 Next, Joe creates a yet empty work copy in a local folder on his computer::
 
   > cd ~/projects
-  > svn checkout http://svn.joescompany.com/ohsome/trunk ohsome
+  > svn checkout http://svn.example.com/ohsome/trunk ohsome
 
 Now he copies all the files from the web server to the work copy::
 
@@ -259,13 +259,13 @@ uses::
 Joe can then use ``svn log`` to look for particular points of interest.
 For instance, to find modified configuration files (matching the pattern \*.cfg)::
 
-  > svn log --verbose --limit 1 http://svn.joescompany.com/ohsome/trunk | grep "\\.cfg$"
+  > svn log --verbose --limit 1 http://svn.example.com/ohsome/trunk | grep "\\.cfg$"
 
 To get a list of Removed files and folders::
 
-  > svn log --verbose --limit 1 http://svn.joescompany.com/ohsome/trunk | grep "^   D" 
+  > svn log --verbose --limit 1 http://svn.example.com/ohsome/trunk | grep "^   D" 
 
-(Note: The ``grep`` looks for three blanks and a "D" for "deleted".)
+(Note: Here, ``grep`` looks for three blanks and a "D" for "deleted" at the beginning of a line.)
  
  
 .. Pseudo SCM for users with SCM issues
@@ -293,6 +293,23 @@ To get a list of Removed files and folders::
 .. increased frustration and waste of time for everybody involved.
 .. 
 .. TODO: Describe solution.
+
+License
+-------
+Copyright (C) 2011 Thomas Aglassinger
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation, either version 3 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 # Copyright (C) 2011 Thomas Aglassinger
 #
@@ -319,6 +336,10 @@ To get a list of Removed files and folders::
 #
 # > python scunch/test_scunch.py
 # > python setup.py sdist --formats=zip upload
+#
+#  Tag a release:
+# > git tag -a --message "Tagged version 0.x." 0.x
+# > git push --tags
 import difflib
 import errno
 import logging
