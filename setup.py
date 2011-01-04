@@ -1,5 +1,22 @@
 """
 Installer for scunch.
+
+Developer cheat sheet
+---------------------
+
+Create the installer archive::
+
+  $ python setup.py sdist --formats=zip
+
+Upload release to PyPI::
+
+  $ python setup.py test
+  $ python setup.py sdist --formats=zip upload
+
+Tag a release::
+
+  $ git tag -a --message "Tagged version 0.x." 0.x
+  $ git push --tags
 """
 # Copyright (C) 2011 Thomas Aglassinger
 #
