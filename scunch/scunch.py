@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
+======
 Scunch
 ======
 
@@ -60,12 +60,21 @@ Here are some hints to install a command line client on popular platforms:
 * Windows: Use `Slik SVN <http://www.sliksvn.com/en/download>`_.
 
 
-Basic usage
------------
+Usage
+=====
+
+This section gives a short description of the available command line
+options together with simple examples.
 
 To read a summary of the available options, run::
 
   $ scunch --help
+
+For more detailed usage in real world scenarios, read the section on 
+"<Scenarios scenarios>_".
+
+Basic usage
+-----------
 
 To "punch" the folder ``/tmp/ohsome`` into the work copy ``~/projects/ohsome``, run::
 
@@ -74,6 +83,10 @@ To "punch" the folder ``/tmp/ohsome`` into the work copy ``~/projects/ohsome``, 
 To do the same but also commit the changes, run::
 
   $ scunch --commit --message "Punched version 1.3.8." /tmp/ohsome ~/projects/ohsome
+
+
+Controlling the output
+----------------------
 
 To control how much details you can see during the punching, use ``--log.``. To see
 only warnings and errors, use::
@@ -86,6 +99,10 @@ To see a lot of details about the inner workings, use::
 
 Possible values for ``--log`` are: ``debug``, ``info`` (the default),
 ``warning`` and ``error``.
+
+
+Moving or renaming files
+------------------------
 
 By default, ``scunch`` checks for files added and removed with the same
 name but located in a different folder. For example::
@@ -118,6 +135,78 @@ Possible move modes are:
 * ``name`` (the default): move files with identical names.
 * ``none``: use add/remove instead if move.
 
+
+Dealing with non ASCII file names
+---------------------------------
+
+To perform SCM operations, ``scunch`` simply runs the proper SCM command
+line client as a shell process in the background. This typically works nice
+and dandy as long as all files to be processed have names that solely
+consist of ASCII characters. As soon as you have names in Kanji or with
+Umlauts, trouble can ensue.
+
+By default, ``scunch`` attempts to figure out proper settings for such a
+situation by itself. However, this might fail and the result typically is a
+``UnicodeEncodeError``.
+
+The first sign of trouble is when ``scunch`` logs the following warning message:
+
+  LC_CTYPE should be set to for example 'en_US;UTF-8' to allow processing of file names with non-ASCII characters
+
+This indicates that the console encoding is set to ASCII and any non ASCII
+characters in file names will result in a ``UnicodeEncodeError``. To fix
+this, you can tell the console the file name encoding by setting the
+environment variable ``LC_CTYPE``. For Mac OS X and most modern Linux
+systems, the following command should do the trick::
+
+  $ export LC_CTYPE=en_US;UTF-8
+
+For Windows 7 so can use::
+
+  > set LC_CTYPE=en_US;UTF-8
+
+Note that this can have implications for other command line utilities, so
+making this a permanent setting in ``.profile`` or ``.bashrc`` might not
+be a good idea. Alternatively you can specify the proper encoding every
+time you run ``scunch`` (upper/lower case does not matter here)::
+
+  $ scunch --encoding=utf-8 /tmp/ohsome ~/projects/ohsome
+
+For other platforms, you can try the values above. If they do not work as
+intended, you need to dive into the documentation of your file system and
+find out which encoding it uses.
+
+But even if the encoding is correct, ``scunch`` and the file system still
+might disagree on how to normalize Unicode characters. Again, ``scunch``
+attempts to figure out the proper normalization but in case it is wrong
+you can specify it using ``--normalize``.  Possible value are: ``auto``
+(the default), ``nfc``, ``nfkc``, ``nfd`` and ``nfkd``. To understand the
+meaning of these values, check the Unicode Consortium's `FAQ on normalization <http://unicode.org/faq/normalization.html>`_.
+
+As a complete example, the proper options for Mac OS X with a HFS volume
+are::
+
+  $ scunch --encoding=utf-8 --normalize=nfd /tmp/ohsome ~/projects/ohsome
+
+Incidentally, these are the values ``scunch`` would have used already, so
+in practice there is not need to explicitly state them.
+
+If however the files reside on a UDF volume, the proper settings would be::
+
+  $ scunch --normalize=nfc /tmp/ohsome ~/projects/ohsome
+
+In case the external files to punch into the work copy reside on a volume
+with different settings than the work copy, or you cannot figure them out
+at all, try to copy the files to a Volume with know settings and run
+``scunch`` on this copy.
+
+.. scenarios:
+
+Scenarios
+=========
+
+This section describes common scenarios where ``scunch`` can be put to
+good use.
 
 Upgrading from old school version management
 --------------------------------------------
@@ -353,8 +442,10 @@ To get a list of Removed files and folders::
 .. 
 .. TODO: Describe solution.
 
+
 License
--------
+=======
+
 Copyright (C) 2011 Thomas Aglassinger
 
 This program is free software: you can redistribute it and/or modify it
@@ -370,13 +461,16 @@ more details.
 You should have received a copy of the GNU Lesser General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+
 Version history
----------------
+===============
 
 Version 0.3, 05-Jan-2011
 
 * Fixed processing of file names with non ASCII characters for Mac OS X
   and possibly other platforms.
+* Added command lines options ``--encoding`` and ``--normalize`` to
+  specify how to deal with non ASCII characters.
 
 Version 0.2, 04-Jan-2011
 
