@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Tests for scunch.
 """
@@ -28,23 +27,23 @@ import scunch
 
 _log = logging.getLogger("test")
 
+_BaseTestFolder = os.path.abspath("test")
+
 def makeEmptyFolder(folderPathToCreate):
     scunch.removeFolder(folderPathToCreate)
     scunch.makeFolder(folderPathToCreate)
-
-_BaseTestFolder = os.path.abspath("test")
 
 class ToolsTest(unittest.TestCase):
     def testRunWithAsciiEcho(self):
         scunch.run([u"echo", u"hello"])
 
     def testRunWithUmlautEcho(self):
-        scunch.run([u"echo", u'h\xe4ll\xf6.py'])
+        scunch.run([u"echo", u'h\xe4ll\xf6'])
 
     def testRunWithUmlautEchoResult(self):
-        helloPy = u'h\xe4ll\xf6.py'
-        helloWithUmlauts = scunch.run([u'echo', helloPy], returnStdout=True)
-        normalizedHelloPy = [unicodedata.normalize(scunch._consoleNormalization, helloPy)]
+        hello = u'h\xe4ll\xf6'
+        helloWithUmlauts = scunch.run([u'echo', hello], returnStdout=True)
+        normalizedHelloPy = [unicodedata.normalize(scunch._consoleNormalization, hello)]
         self.assertEqual( helloWithUmlauts, normalizedHelloPy)
         
 class _ScmTest(unittest.TestCase):
