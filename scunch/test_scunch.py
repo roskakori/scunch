@@ -47,6 +47,9 @@ class ToolsTest(unittest.TestCase):
         self.assertEqual( helloWithUmlauts, normalizedHelloPy)
         
 class _ScmTest(unittest.TestCase):
+    def setUp(self):
+        scunch._setUpEncoding()
+
     def setUpProject(self, project, testFolderPath=_BaseTestFolder):
         """
         Create a local repository for ``project``, possibly removing any existing repository
@@ -144,9 +147,7 @@ class BasicTest(_SvnTest):
     def testAddWithNonAsciiFileName(self):
         self.setUpProject("basic")
         scmWork = self.scmWork
-        import unicodedata
         hello = unicodedata.normalize("NFD", u'h\xe4ll\xf6.py')
-        print "%r" % hello
         helloWithUmlautPath = scmWork.absolutePath('test file path with umlauts', hello)
         self.writeTextFile(helloWithUmlautPath, ["print u'h\\xe4ll\\xf6'"])
         self.assertNonNormalStatus({scunch.ScmStatus.Unversioned: 1})
@@ -190,6 +191,9 @@ class ScmPuncherTest(_SvnTest):
     """
     TestCase for `scunch.ScmPuncher`.
     """
+    def setUp(self):
+        scunch._setUpEncoding()
+
     def _testAfterPunch(self, externalFolderPath):
         """
         Test that previously punched changes can be committed and a re-punch results in no further changes.

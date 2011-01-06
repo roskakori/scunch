@@ -526,10 +526,15 @@ _consoleNormalization = None
 
 _ValidConsoleNormalizations = set(['auto', 'nfc', 'nfkc', 'nfd', 'nfkd'])
 
-def _setUpLogging(level=logging.INFO, consoleEncoding='auto', consoleNormalization='auto'):
+def _setUpLogging(level=logging.INFO):
     """
     * level - the minimum logging level to log.
+    """
+    assert level is not None
+    logging.basicConfig(level=level)
     
+def _setUpEncoding(consoleEncoding='auto', consoleNormalization='auto'):
+    """
     * consoleEncoding - the encoding used by shell commands when writing to ``stdout``.
     
     * consoleNormalization - Unicode normalization for console output which in turn decides the
@@ -537,9 +542,7 @@ def _setUpLogging(level=logging.INFO, consoleEncoding='auto', consoleNormalizati
       "Text Encodings in VFS", available from
       <http://developer.apple.com/library/mac/#qa/qa2001/qa1173.html>.
     """
-    assert level is not None
     assert consoleEncoding is not None
-    assert consoleNormalization is not None
     assert consoleNormalization in _ValidConsoleNormalizations, "consoleNormalization=%r" % consoleNormalization
 
     # TODO: Redesign console encoding to get rid of ugly globals.
@@ -564,7 +567,6 @@ def _setUpLogging(level=logging.INFO, consoleEncoding='auto', consoleNormalizati
         _log.warning("LC_CTYPE should be set to for example 'en_US;UTF-8' to allow processing of file names with non-ASCII characters")
     sys.stdout = codecs.getwriter(_consoleEncoding)(sys.stdout)
     sys.stdin = codecs.getreader(_consoleEncoding)(sys.stdin)
-    logging.basicConfig(level=level)
     
 def _humanReadableCommand(commandAndOptions):
     result = ""
@@ -580,9 +582,11 @@ def _humanReadableCommand(commandAndOptions):
     return result
 
 def run(commandAndOptions, returnStdout=False, cwd=None):
+    assert _consoleEncoding is not None
+    assert _consoleNormalization is not None
     assert commandAndOptions
     result = None
-    encoding = locale.getpreferredencoding()
+    encoding = _consoleEncoding
     normalizedCommandAndOptions = []
     for commandItem in commandAndOptions:
         if isinstance(commandItem, types.UnicodeType):
@@ -1435,7 +1439,8 @@ def main(arguments=None):
     else:
         parser.error("unrecognized options must be removed: %s" % others[2:])
 
-    _setUpLogging(_LogLevelNameMap[options.logLevel], options.encoding, options.unicodeNormalization)
+    _setUpLogging(_LogLevelNameMap[options.logLevel])
+    _setUpEncoding(options.encoding, options.unicodeNormalization)
 
     exitCode = 1
     try:
