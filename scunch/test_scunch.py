@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Tests for scunch.
 """
@@ -18,6 +19,7 @@ Tests for scunch.
 import logging
 import os
 import shutil
+import unicodedata
 import unittest
 
 from urlparse import urljoin
@@ -32,6 +34,19 @@ def makeEmptyFolder(folderPathToCreate):
 
 _BaseTestFolder = os.path.abspath("test")
 
+class ToolsTest(unittest.TestCase):
+    def testRunWithAsciiEcho(self):
+        scunch.run([u"echo", u"hello"])
+
+    def testRunWithUmlautEcho(self):
+        scunch.run([u"echo", u'h\xe4ll\xf6.py'])
+
+    def testRunWithUmlautEchoResult(self):
+        helloPy = u'h\xe4ll\xf6.py'
+        helloWithUmlauts = scunch.run([u'echo', helloPy], returnStdout=True)
+        normalizedHelloPy = [unicodedata.normalize(scunch._consoleNormalization, helloPy)]
+        self.assertEqual( helloWithUmlauts, normalizedHelloPy)
+        
 class _ScmTest(unittest.TestCase):
     def setUpProject(self, project, testFolderPath=_BaseTestFolder):
         """
@@ -125,6 +140,23 @@ class _SvnTest(_ScmTest):
 
         self.scmWork.addUnversioned("")
         self.scmWork.commit("", "Added test files")
+
+class BasicTest(_SvnTest):
+    def testAddWithNonAsciiFileName(self):
+        self.setUpProject("basic")
+        scmWork = self.scmWork
+        import unicodedata
+        hello = unicodedata.normalize("NFD", u'h\xe4ll\xf6.py')
+        print "%r" % hello
+        helloWithUmlautPath = scmWork.absolutePath('test file path with umlauts', hello)
+        self.writeTextFile(helloWithUmlautPath, ["print u'h\\xe4ll\\xf6'"])
+        self.assertNonNormalStatus({scunch.ScmStatus.Unversioned: 1})
+        scmWork.add(helloWithUmlautPath)
+        for statusInfo in scmWork.status(""):
+            _log.debug("  status=%s", statusInfo)
+        self.assertNonNormalStatus({scunch.ScmStatus.Added: 1})
+        scmWork.commit("", "Added file with umlauts in name.")
+        self.assertNonNormalStatus({})
 
 class ScunchTest(_SvnTest):
     """
@@ -258,6 +290,6 @@ class ScmPuncherTest(_SvnTest):
         self._testAfterPunch(testPunchWithMovedFilesPath)
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+    scunch._setUpLogging(logging.DEBUG)
     unittest.main()
 

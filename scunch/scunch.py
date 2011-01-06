@@ -1,10 +1,11 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
 Scunch
 ======
 
 Scunch is a tool to "punch" the files from an unversioned folder into a
-working copy of a software configuration management system (SCM) and apply
+working copy of a source code management (SCM) system and apply
 the necessary SCM operations such as "add" and "remove".
 
 Intended scenarios of use are:
@@ -17,7 +18,7 @@ Intended scenarios of use are:
   management (usual suspects are: managers, graphical artists, mainframe
   elders, ...).
 
-Currently supported SCM's are:
+Currently supported SCM systems are:
 
 * Subversion (svn)
 
@@ -44,9 +45,9 @@ If you prefer a manual installation, you can obtain the ZIP archive from
 <http://pypi.python.org/pypi/scunch/>.  Furthermore the source code is
 available from <https://github.com/roskakori/scunch>.
 
-To actually use ``scunch``, you need also need an SCM. In particular, you
-need the SCM's command line client to be installed and located in the
-shell's search path. Installing a Desktop plugin such as `TortoiseSVN
+To actually use ``scunch``, you need also need an SCM tool. In particular,
+you need the SCM's command line client to be installed and located in the
+shell's search path. Installing a desktop plug-in such as `TortoiseSVN
 <http://tortoisesvn.tigris.org/>`_ is not enough because it does not
 install a command line client.
 
@@ -56,7 +57,7 @@ Here are some hints to install a command line client on popular platforms:
   `MacPorts <http://www.macports.org/>`_.
 * Linux: Use your package manager, for example:
   ``apt-get install subversion``.
-* Windows: Use `SlikS SVN <http://www.sliksvn.com/en/download>`_.
+* Windows: Use `Slik SVN <http://www.sliksvn.com/en/download>`_.
 
 
 Basic usage
@@ -89,7 +90,7 @@ Possible values for ``--log`` are: ``debug``, ``info`` (the default),
 By default, ``scunch`` checks for files added and removed with the same
 name but located in a different folder. For example::
 
-  Added : source/tools/uitools.py
+  Added  : source/tools/uitools.py
   Removed: source/uitools.py
 
 With Subversion, ``scunch`` will internally run::
@@ -155,6 +156,7 @@ No he can check out the ``trunk`` to a temporary folder::
 
 Now it is time to punch the oldest version into the still empty work copy::
 
+  $ cd /tmp/nifti
   $ scunch ~/projects/nifti_2010-05-23
 
 Tim reviews the changes to be committed. Unsurprisingly, there are only
@@ -223,15 +225,14 @@ Joe works in an IT department. One of his responsibilities to install
 updates for a web application named "ohsome" developed and delivered by a
 third party. The work flow for this is well defined:
 
-  1. Vendor send the updated source code to Joe in a ZIP archive containing
-     a mix of HTML, JavaScript and XML files, mixed in with a few server
-     configuration files.
+1. Vendor send the updated source code to Joe in a ZIP archive containing a
+   mix of HTML, JavaScript and XML files, mixed in with a few server
+   configuration files.
 
-  2. Joe extracts the ZIP archive to a local folder.
+2. Joe extracts the ZIP archive to a local folder.
 
-  3. Joe moves the contents of local folder to the application folder on
-     the server. In the process, he removes all previous files for the
-     application.
+3. Joe moves the contents of local folder to the application folder on the
+   server. In the process, he removes all previous files for the application.
 
 This works well as long as the vendor managed to pack everything into the ZIP
 archive. However, experience shows that the vendor sometimes forgets to
@@ -372,6 +373,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Version history
 ---------------
 
+Version 0.3, 05-Jan-2011
+
+* Fixed processing of file names with non ASCII characters for Mac OS X
+  and possibly other platforms.
+
 Version 0.2, 04-Jan-2011
 
 * Fixed ``NotImplementedError``.
@@ -398,25 +404,74 @@ Version 0.1, 03-Jan-2011
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import codecs
 import difflib
 import errno
+import locale
 import logging
 import optparse
 import os.path
+import platform
 import shutil
 import stat
 import subprocess
 import sys
 import tempfile
 import types
+import unicodedata
 import urlparse
 import xml.sax
 from xml.sax.handler import ContentHandler
 
-__version__ = "0.2"
+__version__ = "0.3"
 
 _log = logging.getLogger("scunch")
 
+_consoleEncoding = None
+_consoleNormalization = None
+
+_ValidConsoleNormalizations = set(['auto', 'nfc', 'nfkc', 'nfd', 'nfkd'])
+
+def _setUpLogging(level=logging.INFO, consoleEncoding='auto', consoleNormalization='auto'):
+    """
+    * level - the minimum logging level to log.
+    
+    * consoleEncoding - the encoding used by shell commands when writing to ``stdout``.
+    
+    * consoleNormalization - Unicode normalization for console output which in turn decides the
+      normalization of file names. For Mac OS X HFS, this is "NFD". See Technical Q&A QA1173,
+      "Text Encodings in VFS", available from
+      <http://developer.apple.com/library/mac/#qa/qa2001/qa1173.html>.
+    """
+    assert level is not None
+    assert consoleEncoding is not None
+    assert consoleNormalization is not None
+    assert consoleNormalization in _ValidConsoleNormalizations, "consoleNormalization=%r" % consoleNormalization
+
+    # TODO: Redesign console encoding to get rid of ugly globals.
+    global _consoleEncoding
+    global _consoleNormalization
+    
+    if consoleEncoding == 'auto':
+        _consoleEncoding = locale.getpreferredencoding()
+    else:
+        _consoleEncoding = consoleEncoding
+    if consoleNormalization == 'auto':
+        if platform.system() == 'Darwin':
+            # HACK: Assume NFD, which wil be fine for HFS. However, UDF and SMB would expect NFC.
+            # Furthermore, NFS is utterly undeterministic.
+            _consoleNormalization = 'nfd'
+        else:
+            # TODO: Try this with Windows and Linux.
+            _consoleNormalization = 'nfc'
+    _consoleNormalization = _consoleNormalization.upper()
+
+    if _consoleEncoding.lower() in ("ascii", "us-ascii"):
+        _log.warning("LC_CTYPE should be set to for example 'en_US;UTF-8' to allow processing of file names with non-ASCII characters")
+    sys.stdout = codecs.getwriter(_consoleEncoding)(sys.stdout)
+    sys.stdin = codecs.getreader(_consoleEncoding)(sys.stdin)
+    logging.basicConfig(level=level)
+    
 def _humanReadableCommand(commandAndOptions):
     result = ""
     isFirstItem = True
@@ -433,35 +488,51 @@ def _humanReadableCommand(commandAndOptions):
 def run(commandAndOptions, returnStdout=False, cwd=None):
     assert commandAndOptions
     result = None
-    commandName = commandAndOptions[0]
-    commandText = _humanReadableCommand(commandAndOptions)
-    _log.debug("run: %s", commandText)
-    with tempfile.TemporaryFile(prefix="scunch_stderr_") as stderrLines:
-        if returnStdout:
-            stdoutLines = tempfile.TemporaryFile(prefix="scunch_stdout_")
-        else:
-            stdoutLines = open(os.devnull, "wb")
-        try:
-            exitCode = subprocess.call(commandAndOptions, stdout=stdoutLines, stderr=stderrLines, cwd=cwd)
-            if exitCode != 0:
-                stderrLines.seek(0)
-                errorMessage = stderrLines.readline().rstrip("\n\r")
-                if errorMessage:
-                    if errorMessage[-1] not in ".!?":
-                        errorMessage += "."
-                    errorMessage = " Error: " + errorMessage
-                else:
-                    errorMessage = "."
-                raise ScmError("cannot perform shell command %r.%s Command:  %s" %(commandName, errorMessage, commandText))
-        except OSError, error:
-            raise ScmError("cannot perform shell command %r: %s. Command:  %s" %(commandName, error, commandText))
-        finally:
+    encoding = locale.getpreferredencoding()
+    normalizedCommandAndOptions = []
+    for commandItem in commandAndOptions:
+        if isinstance(commandItem, types.UnicodeType):
+            commandItem = unicodedata.normalize(_consoleNormalization, commandItem)
+        normalizedCommandAndOptions.append(commandItem)
+    commandName = normalizedCommandAndOptions[0]
+    commandText = _humanReadableCommand(normalizedCommandAndOptions)
+    _log.debug(u"run: %s", commandText)
+    stderrFd, stderrPath = tempfile.mkstemp(prefix="scunch_stderr_")
+    try:
+        os.close(stderrFd)
+        with codecs.open(stderrPath, "w+b", encoding) as stderrLines:
             if returnStdout:
-                result = []
-                stdoutLines.seek(0)
-                for line in stdoutLines:
-                    result.append(line.rstrip('\n\r'))
-            stdoutLines.close()
+                stdoutFd, stdoutPath = tempfile.mkstemp(prefix="scunch_stdout_")
+                os.close(stdoutFd)
+                stdoutFile = codecs.open(stdoutPath, "w+b", encoding)
+            else:
+                # No need to set encoding "w+b" here because nothing can be read or written.
+                stdoutFile = open(os.devnull, "wb")
+            try:
+                exitCode = subprocess.call(normalizedCommandAndOptions, stdout=stdoutFile, stderr=stderrLines, cwd=cwd)
+                if exitCode != 0:
+                    stderrLines.seek(0)
+                    errorMessage = stderrLines.readline().rstrip("\n\r")
+                    if errorMessage:
+                        if errorMessage[-1] not in ".!?":
+                            errorMessage += "."
+                        errorMessage = " Error: " + errorMessage
+                    else:
+                        errorMessage = "."
+                    raise ScmError("cannot perform shell command %r.%s Command:  %s" %(commandName, errorMessage, commandText))
+            except OSError, error:
+                raise ScmError("cannot perform shell command %r: %s. Command:  %s" %(commandName, error, commandText))
+            finally:
+                if returnStdout:
+                    result = []
+                    stdoutFile.seek(0)
+                    for line in stdoutFile:
+                        line = line.rstrip('\n\r')
+                        line = unicodedata.normalize(_consoleNormalization, line)
+                        result.append(line)
+                stdoutFile.close()
+    finally:
+        os.remove(stderrPath)
     return result
 
 def removeFolder(folderPathToRemove):
@@ -1050,7 +1121,7 @@ class ScmWork(object):
         return result
 
     def add(self, relativePathsToAdd, recursive=True):
-        _log.debug("add: %s", str(relativePathsToAdd))
+        _log.debug(u"add: %r", relativePathsToAdd)
         assert relativePathsToAdd is not None
         svnAddCommand = ["svn", "add", "--non-interactive"]
         if not recursive:
@@ -1252,9 +1323,11 @@ def main(arguments=None):
 
     parser = optparse.OptionParser(usage=_Usage, version="%prog " + __version__)
     parser.add_option("-c", "--commit", action="store_true", dest="isCommit", help="after punching the changes into the work copy, commit them")
+    parser.add_option("-e", "--encoding", help='encoding to use for running shell commands (default: "auto")')
     parser.add_option("-L", "--log", default='info', dest="logLevel", metavar="LEVEL", type="choice", choices=_LogLevelNameMap.keys(), help='logging level (default: "%default")')
     parser.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help='text for commit message (default: "%default")')
     parser.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help='criteria to detect moved files (default: "%default")')
+    parser.add_option("-n", "--normalize", default='auto', dest="unicodeNormalization", metavar="FORM", type="choice", choices=sorted(_ValidConsoleNormalizations), help='uncode normalization to use for running shell commands (default: "%default")')
     (options, others) = parser.parse_args(actualArguments[1:])
     othersCount = len(others)
     if othersCount == 0:
@@ -1268,8 +1341,8 @@ def main(arguments=None):
     else:
         parser.error("unrecognized options must be removed: %s" % others[2:])
 
-    logging.basicConfig(level=_LogLevelNameMap[options.logLevel])
-   
+    _setUpLogging(_LogLevelNameMap[options.logLevel], options.encoding, options.unicodeNormalization)
+
     exitCode = 1
     try:
         scmWork = createScmWork(workFolderPath)
