@@ -73,6 +73,13 @@ class _ScmTest(unittest.TestCase):
         makeEmptyFolder(result)
         return result
 
+    def writeBinaryFile(self, targetFilePath, data):
+        assert targetFilePath
+        assert data is not None
+        _log.debug("write binary file \"%s\"", targetFilePath)
+        with open(targetFilePath, 'wb') as targetFile:
+                targetFile.write(data)
+
     def writeTextFile(self, targetFilePath, lines):
         assert targetFilePath
         assert lines is not None
@@ -194,7 +201,7 @@ class ScmPuncherTest(_SvnTest):
     def setUp(self):
         scunch._setUpEncoding()
 
-    def _testAfterPunch(self, externalFolderPath):
+    def _testAfterPunch(self, externalFolderPath, textOptions=None):
         """
         Test that previously punched changes can be committed and a re-punch results in no further changes.
         """
@@ -203,7 +210,7 @@ class ScmPuncherTest(_SvnTest):
         
         self.scmWork.commit([""], "Punched recent changes.")
         rePuncher = scunch.ScmPuncher(self.scmWork)
-        rePuncher.punch(externalFolderPath)
+        rePuncher.punch(externalFolderPath, textOptions=textOptions)
         self.assertNonNormalStatus({})
         self.assertEqual(rePuncher.workItems, rePuncher.externalItems)
 
@@ -292,7 +299,45 @@ class ScmPuncherTest(_SvnTest):
         self.assertNonNormalStatus({scunch.ScmStatus.Added: 2, scunch.ScmStatus.Removed: 2})
         self._testAfterPunch(testPunchWithMovedFilesPath)
 
+    def _testTextOptions(self, cliTextOptions):
+        self.setUpProject("punchText")
+        scmWork = self.scmWork
+
+        self.testPunchTextPath = self.createTestFolder("testPunchText")
+        scmWork.exportTo(self.testPunchTextPath, clear=True)
+
+        # Create a folder with a couple of messed up text files.
+        # TODO: Store paths in work copy as attributes: self.textsFolderPath = scmWork.absolutePath("test text folder path", "texts")
+        self.textsFolderPath = os.path.join(self.testPunchTextPath, "texts")
+        scunch.makeFolder(self.textsFolderPath)
+        self.dosNewLineTxtPath = os.path.join(self.textsFolderPath, "dosNewLine.txt")
+        self.writeBinaryFile(self.dosNewLineTxtPath, "1\r\n2\r\n")
+        self.macNewLineTxtPath = os.path.join(self.textsFolderPath, "macNewLine.txt")
+        self.writeBinaryFile(self.macNewLineTxtPath, "1\r2\r")
+        self.unixNewLineTxtPath = os.path.join(self.textsFolderPath, "unixNewLine.txt")
+        self.writeBinaryFile(self.unixNewLineTxtPath, "1\n2\n")
+        self.mixedNewLineTxtPath = os.path.join(self.textsFolderPath, "mixedNewLine.txt")
+        self.writeBinaryFile(self.mixedNewLineTxtPath, "1\r\n2\n3\r")
+        self.noNewLineTxtPath = os.path.join(self.textsFolderPath, "noNewLine.txt")
+        self.writeBinaryFile(self.noNewLineTxtPath, "1")
+        self.emptyTxtPath = os.path.join(self.textsFolderPath, "empty.txt")
+        self.writeBinaryFile(self.emptyTxtPath, "")
+
+        arguments = ["<test>", "--text", "txt"]
+        arguments.extend(cliTextOptions)
+        arguments.append(self.testPunchTextPath)
+        arguments.append(scmWork.absolutePath("test work folder", ""))
+        options, sourceFolderPath, _ = scunch.parsedOptions(arguments)
+        textOptions = scunch.TextOptions(options)
+        scunch.scunch(sourceFolderPath, scmWork, textOptions, move=options.moveMode)
+
+        scmWork.addUnversioned("")
+        self.assertNonNormalStatus({scunch.ScmStatus.Added: 7})
+        self._testAfterPunch(self.testPunchTextPath, textOptions)
+
+    def testTextOptions(self):
+        self._testTextOptions([])
+
 if __name__ == '__main__':
     scunch._setUpLogging(logging.DEBUG)
     unittest.main()
-

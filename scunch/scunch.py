@@ -465,6 +465,23 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Version history
 ===============
 
+Version 0.4, 08-Jan-2011
+
+Added options to normalize text files and fixed some critical bugs.
+
+* #4: Added command line option ``--text`` to specify which files should be
+  considered text and normalized concerning end of line characters.
+* #5: Added command line option ``--newline`` to specify which end of line
+  characters should be used for text files.
+* #6: Added command line option ``--tabsize`` to specify that tabs should
+  be aligned on a certain number of spaces in text files.
+* #7: Added command line option ``--strip-trailing`` to remove trailing
+  white space in text files.
+* Fixed sorting of file names which could result into inconsistent work
+  copies.
+* Fixed processing of internal file name diff sequences of type 'replace',
+  which could result in inconsistent work copies.
+
 Version 0.3, 05-Jan-2011
 
 * Fixed processing of file names with non ASCII characters for Mac OS X
@@ -517,7 +534,8 @@ import urlparse
 import xml.sax
 from xml.sax.handler import ContentHandler
 
-__version__ = "0.3"
+__version_info__ = (0, 4, 0)
+__version__ = '.'.join(unicode(item) for item in __version_info__)
 
 _log = logging.getLogger("scunch")
 
@@ -617,9 +635,9 @@ def run(commandAndOptions, returnStdout=False, cwd=None):
                         errorMessage = " Error: " + errorMessage
                     else:
                         errorMessage = "."
-                    raise ScmError("cannot perform shell command %r.%s Command:  %s" %(commandName, errorMessage, commandText))
+                    raise ScmError(u"cannot perform shell command %r.%s Command:  %s" %(commandName, errorMessage, commandText))
             except OSError, error:
-                raise ScmError("cannot perform shell command %r: %s. Command:  %s" %(commandName, error, commandText))
+                raise ScmError(u"cannot perform shell command %r: %s. Command:  %s" %(commandName, error, commandText))
             finally:
                 if returnStdout:
                     result = []
@@ -738,7 +756,7 @@ class _SvnStatusContentHandler(ContentHandler):
             raise ScmError("cannot process unknown status: %r" % svnStatus)
         if result == ScmStatus.None_:
             result = None
-        _log.debug("  status: svn=%r --> %r", svnStatus, result)
+        # TODO: Remove: _log.debug("  status: svn=%r --> %r", svnStatus, result)
         return result
 
     def startElement(self, name, attributes):
@@ -880,6 +898,9 @@ class FolderItem(object):
         
     def __str__(self):
         return unicode(self).encode('utf-8')
+    
+    def __repr__(self):
+        return self.__str__()
 
 def _sortedFolderItems(folderItemsToSort):
     def comparedFolderItems(some, other):
@@ -889,9 +910,9 @@ def _sortedFolderItems(folderItemsToSort):
         # Sort folders before files, hence '-'.
         typeComparison = -cmp(some.kind, other.kind)
         if typeComparison:
-            result = cmp(some.elements, other.elements)
-        else:
             result = typeComparison
+        else:
+            result = cmp(some.elements, other.elements)
         return result
 
     assert folderItemsToSort is not None
@@ -940,6 +961,72 @@ def listFolderItems(folderPathToList, isAcceptable=None):
     for nestedItem in _listFolderItems(folderPathToList, item, isAcceptable):
         yield nestedItem
 
+class TextOptions(object):
+    """
+    Options describing how to convert punched text files.
+    """
+
+    # Special tab size indicating that tabs should be preserved.    
+    PreserveTabs = 0
+
+    NameToNewLineMap = {
+        'native': os.linesep,
+        'dos': '\r\n',
+        'mac': '\r',
+        'unix': '\n',
+        'crlf': '\r\n',
+        'cr': '\r',
+        'lf': '\n'
+    }
+
+    def __init__(self, commandLineOptions):
+        assert commandLineOptions is not None
+        assert commandLineOptions.tabSize is not None
+        assert commandLineOptions.tabSize >= 0
+        assert commandLineOptions.newLine in TextOptions.NameToNewLineMap.keys(), 'newLine=%r' % commandLineOptions.newLine 
+        
+        self._trailingCharactersToStrip = '\n\r'
+        if commandLineOptions.isStripTrailing:
+                self._trailingChararactersToStrip += "\t "
+        assert commandLineOptions.newLine in TextOptions.NameToNewLineMap
+        self.newLine = TextOptions.NameToNewLineMap[commandLineOptions.newLine]
+        assert self.newLine
+        self.tabSize = commandLineOptions.tabSize
+        if commandLineOptions.textSuffixes:
+            # Split string with comma separated suffixes into set of lower case suffixes with
+            # leading and trailing blanks removed.
+            self.textSuffixes = set([item.strip().lower() for item in commandLineOptions.textSuffixes.split(",")])
+        else:
+            self.textSuffixes = None
+
+    def isText(self, filePath):
+        """
+        ``True`` if ``filePath`` indicates a text file according to the suffixes specified in the constructor.
+        """
+        # Note: We do not even accept an empty ``filePath`` because this must only be called for
+        # file names always have at least 1 character, and not folders (which can be empty
+        # when referring to the current working folder).
+        assert filePath
+
+        result = False
+        if self.textSuffixes:
+            lowerFileNameSuffixWithoutDot = os.path.splitext(filePath)[1][1:].lower()
+            if lowerFileNameSuffixWithoutDot in self.textSuffixes:
+                result = True
+        return result
+    
+    def convertedLine(self, line):
+        """
+        Similar to ``line`` but with the conversion decribed by this `TextOptions` applied.
+        """
+        assert line is not None
+
+        result = line.rstrip(self._trailingCharactersToStrip)
+        if self.tabSize:
+            result = result.expandtabs(self.tabSize)
+        result += self.newLine
+        return result
+
 class ScmPuncher(object):
     """
     Puncher to transform a work copy according to the current state of an external folder.
@@ -981,10 +1068,25 @@ class ScmPuncher(object):
         assert self._externalFolderPath is not None
         return folderItem.absolutePath(self._externalFolderPath)
 
+    def _assertScheduledItemIsUnique(self, itemToSchedule, operation):
+        """
+        Assert that a folder item ``itemToSchedule` scheduled for ``operation`` has not been
+        scheduled for any other operation so far. 
+        """
+        assert itemToSchedule is not None
+        assert operation in ('add', 'copy', 'move', 'remove', 'transfer')
+        # TODO: Change self._*Items from list to set for faster lookup.
+        assert (self._addedItems is None) or (itemToSchedule not in self._addedItems, "item scheduled to %s has already been added: %s" % (operation, itemToSchedule))
+        assert (self._copiedItems is None) or (itemToSchedule not in self._copiedItems, "item scheduled to %s has already been copied: %s" % (operation, itemToSchedule))
+        assert (self._modifiedItems is None) or (itemToSchedule not in self._modifiedItems, "item scheduled to %s has already been transferred: %s" % (operation, itemToSchedule))
+        assert (self._movedItems is None) or (itemToSchedule not in self._movedItems, "item scheduled to %s has already been moved: %s" % (operation, itemToSchedule))
+        assert (self._removedItems is None) or (itemToSchedule not in self._removedItems, "item scheduled to %s has already been removed: %s" % (operation, itemToSchedule))
+
     def _add(self, items):
         for itemToAdd in items:
             if not self._isInLastRemovedFolder(itemToAdd):
                 _log.debug('schedule item for add: "%s"', itemToAdd.relativePath)
+                self._assertScheduledItemIsUnique(itemToAdd, 'add')
                 self._addedItems.append(itemToAdd)
             else:
                 _log.debug('skip added item in removed folder: "%s"', itemToAdd.relativePath)
@@ -993,24 +1095,37 @@ class ScmPuncher(object):
         for itemToRemove in items:
             if not self._isInLastRemovedFolder(itemToRemove):
                 _log.debug('schedule item for remove: "%s"', itemToRemove.relativePath)
+                self._assertScheduledItemIsUnique(itemToRemove, 'remove')
                 self._removedItems.append(itemToRemove)
             else:
                 _log.debug('skip removed item in removed folder: "%s"', itemToRemove.relativePath)
     
     def _modify(self, items):
-        for itemToModify in items:
-            if not self._isInLastRemovedFolder(itemToModify):
+        for itemToTransfer in items:
+            if not self._isInLastRemovedFolder(itemToTransfer):
                 # TODO: Add option to consider items modified by only checking their date.
-                _log.debug('schedule item for copy: "%s"', itemToModify.relativePath)
-                self._modifiedItems.append(itemToModify)
+                _log.debug('schedule item for transfer: "%s"', itemToTransfer.relativePath)
+                self._assertScheduledItemIsUnique(itemToTransfer, 'transfer')
+                self._modifiedItems.append(itemToTransfer)
             else:
-                _log.debug('skip modified item in removed folder: "%s"', itemToModify.relativePath)
+                _log.debug('skip modified item in removed folder: "%s"', itemToTransfer.relativePath)
 
-    def _copyItemFromExternalToWork(self, itemToCopy):
-        assert itemToCopy is not None
-        externalPathOfItemToCopy = self._externalPathFor(itemToCopy)
-        workPathOfItemToCopy = self._workPathFor(itemToCopy)
-        shutil.copy2(externalPathOfItemToCopy, workPathOfItemToCopy)
+    def _copyTextFile(self, sourceFilePath, targetFilePath, textOptions):
+        assert textOptions is not None
+        with open(sourceFilePath, "rb") as sourceFile:
+            with open(targetFilePath, "wb") as targetFile:
+                for line in sourceFile:
+                    targetFile.write(textOptions.convertedLine(line))
+        # TODO: Copy attributes similar to `shutil.copy2()`.
+
+    def _transferItemFromExternalToWork(self, itemToTransfer, textOptions):
+        assert itemToTransfer is not None
+        externalPathOfItemToTransferFrom = self._externalPathFor(itemToTransfer)
+        workPathOfItemToTransferTo = self._workPathFor(itemToTransfer)
+        if textOptions and textOptions.isText(externalPathOfItemToTransferFrom):
+            self._copyTextFile(externalPathOfItemToTransferFrom, workPathOfItemToTransferTo, textOptions)
+        else:
+            shutil.copy2(externalPathOfItemToTransferFrom, workPathOfItemToTransferTo)
 
     def _setExternalAndWorkItems(self, externalFolderPath, relativeWorkFolderPath=""):
         assert externalFolderPath is not None
@@ -1052,8 +1167,22 @@ class ScmPuncher(object):
             elif operation == 'delete':
                 self._remove(self.workItems[i1:i2])
             elif operation == 'replace':
-                self._add(self.workItems[i1:i2])
-                self._remove(self.externalItems[j1:j2])
+                externalItemsToReplace = self.externalItems[j1:j2]
+                _log.debug("  external to replace: %s", externalItemsToReplace)
+                workItemsToReplace = self.workItems[i1:i2]
+                _log.debug("  work to replace: %s", workItemsToReplace)
+                allItems = set(self.workItems[i1:i2]) | set(self.externalItems[j1:j2])
+                for replaceditem in allItems:
+                    replacedWorkItems = set(self.workItems[i1:i2])
+                    replacedExternalItems = set(self.externalItems[j1:j2])
+                    if replaceditem in replacedExternalItems:
+                        if replaceditem in replacedWorkItems:
+                            self._modify([replaceditem])
+                        else:
+                            self._add([replaceditem])
+                    else:
+                        assert replaceditem in replacedWorkItems, "item must be at least in external or work items: %s" % replaceditem
+                        self._remove([replaceditem])
             else:
                 assert False, "operation=%r" % operation
 
@@ -1096,7 +1225,7 @@ class ScmPuncher(object):
                     # TODO: Move folders in case the new folder contains all the item from the old folder (and possibly some more).
                     pass
         
-    def _applyChangedItems(self):
+    def _applyChangedItems(self, textOptions):
         _log.info("punch modifications into work copy")
         if self._removedItems:
             _log.info("remove %d items", len(self._removedItems))
@@ -1114,7 +1243,7 @@ class ScmPuncher(object):
                     makeFolder(self._workPathFor(itemToModify))
                 else:
                     _log.info('  copy "%s"', itemToModify.relativePath)
-                    self._copyItemFromExternalToWork(itemToModify)
+                    self._transferItemFromExternalToWork(itemToModify, textOptions)
         if self._addedItems:
             _log.info("add %d items", len(self._addedItems))
             relativePathsToAdd = []
@@ -1126,7 +1255,7 @@ class ScmPuncher(object):
                 if itemToAdd.kind == FolderItem.Folder:
                     makeFolder(self._workPathFor(itemToAdd))
                 else:
-                    self._copyItemFromExternalToWork(itemToAdd)
+                    self._transferItemFromExternalToWork(itemToAdd, textOptions)
             # Add folders and files to SCM using a single command call.
             self.scmWork.add(relativePathsToAdd, recursive=False)
         if self._movedItems:
@@ -1136,15 +1265,17 @@ class ScmPuncher(object):
                 targetPath = os.path.dirname(targetItemToMove.relativePath)
                 _log.info('  move "%s" from "%s" to "%s"', os.path.basename(sourcePath), os.path.dirname(sourcePath), targetPath)
                 self.scmWork.move(sourcePath, targetPath, force=True)
-                self._copyItemFromExternalToWork(targetItemToMove)
+                self._transferItemFromExternalToWork(targetItemToMove, textOptions)
 
-    def punch(self, externalFolderPath, relativeWorkFolderPath="", move=MoveName):
+    def punch(self, externalFolderPath, relativeWorkFolderPath="", textOptions=None, move=MoveName):
+        assert externalFolderPath is not None
+        assert relativeWorkFolderPath is not None
         try:
             self._setExternalAndWorkItems(externalFolderPath, relativeWorkFolderPath)
             self._setAddedModifiedRemovedItems()
             if move != ScmPuncher.MoveNone:
                 self._setCopiedAndMovedItems()
-            self._applyChangedItems()
+            self._applyChangedItems(textOptions)
         finally:
             self._clear()
 
@@ -1395,12 +1526,12 @@ def listRelativePaths(folderToListPath, elements=[]):
         else:
                 yield ('file', tuple(itemElements))
 
-def scunch(sourceFolderPath, scmWork, move=ScmPuncher.MoveName):
+def scunch(sourceFolderPath, scmWork, textOptions=None, move=ScmPuncher.MoveName):
     assert sourceFolderPath is not None
     puncher = ScmPuncher(scmWork)
-    puncher.punch(sourceFolderPath, move=move)
+    puncher.punch(sourceFolderPath, "", textOptions, move=move)
 
-_LogLevelNameMap = {
+_NameToLogLevelMap = {
     'debug': logging.DEBUG,
     'info': logging.INFO,
     'warning': logging.WARNING,
@@ -1409,24 +1540,41 @@ _LogLevelNameMap = {
 
 _Usage = """%prog [options] FOLDER [WORK-FOLDER]
     
-  Punch files and folders from an unversioned FOLDER into a SCM's
+  Punch files and folders from an unversioned FOLDER into a SCM systems'
   work copy at WORK-FOLDER and perform the required add and remove
   operations."""
 
-def main(arguments=None):
-    if arguments == None:
-        actualArguments = sys.argv
-    else:
-        actualArguments = arguments
+def parsedOptions(arguments):
+    assert arguments is not None
 
     parser = optparse.OptionParser(usage=_Usage, version="%prog " + __version__)
     parser.add_option("-c", "--commit", action="store_true", dest="isCommit", help="after punching the changes into the work copy, commit them")
-    parser.add_option("-e", "--encoding", help='encoding to use for running shell commands (default: "auto")')
-    parser.add_option("-L", "--log", default='info', dest="logLevel", metavar="LEVEL", type="choice", choices=_LogLevelNameMap.keys(), help='logging level (default: "%default")')
+    parser.add_option("-L", "--log", default='info', dest="logLevel", metavar="LEVEL", type="choice", choices=sorted(_NameToLogLevelMap.keys()), help='logging level (default: "%default")')
     parser.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help='text for commit message (default: "%default")')
     parser.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help='criteria to detect moved files (default: "%default")')
-    parser.add_option("-n", "--normalize", default='auto', dest="unicodeNormalization", metavar="FORM", type="choice", choices=sorted(_ValidConsoleNormalizations), help='uncode normalization to use for running shell commands (default: "%default")')
-    (options, others) = parser.parse_args(actualArguments[1:])
+    textGroup = optparse.OptionGroup(parser, "Text file conversion options")
+    textGroup.add_option("-N", "--newline", dest="newLine", metavar="KIND", type="choice", choices=sorted(TextOptions.NameToNewLineMap.keys()), help='separator at the end of line in --text files (default: "native")')
+    textGroup.add_option("-S", "--strip-trailing", action="store_true", dest="isStripTrailing", help="strip trailing white space from --text files")
+    textGroup.add_option("-t", "--text", dest="textSuffixes", metavar="SUFFIXES", help='comma separated list of file name suffixes to treat as text files (default: none)')
+    textGroup.add_option("-T", "--tabsize", default=TextOptions.PreserveTabs, dest="tabSize", metavar="NUMBER", type=long, help='number of spaces to allign tabs with in --text files; %d=keep tab (default: %%default)' % TextOptions.PreserveTabs)
+    parser.add_option_group(textGroup)
+    encodingGroup = optparse.OptionGroup(parser, "Console encoding options")
+    encodingGroup.add_option("-e", "--encoding", help='encoding to use for running console commands (default: "auto")')
+    encodingGroup.add_option("-n", "--normalize", default='auto', dest="unicodeNormalization", metavar="FORM", type="choice", choices=sorted(_ValidConsoleNormalizations), help='uncode normalization to use for running console commands (default: "%default")')
+    parser.add_option_group(encodingGroup)
+
+    # Parse and validate command line options.
+    (options, others) = parser.parse_args(arguments[1:])
+    if options.tabSize < TextOptions.PreserveTabs:
+        parser.error("value for --tabsize is %d but must be at least %d" % (options.tabSize, TextOptions.PreserveTabs))
+    if not options.textSuffixes is None:
+        if options.newLine:
+            parser.error("option --text must be set to enable option --newline")
+        if options.isStripTrailing:
+            parser.error("option --text must be set to enable option --strip-trailing")
+        if options.tabSize:
+            parser.error("option --text must be set to enable option --tabsize")
+        options.newLine = 'native'
     othersCount = len(others)
     if othersCount == 0:
         parser.error("FOLDER to punch into work copy must be specified")
@@ -1439,13 +1587,27 @@ def main(arguments=None):
     else:
         parser.error("unrecognized options must be removed: %s" % others[2:])
 
-    _setUpLogging(_LogLevelNameMap[options.logLevel])
+    return (options, sourceFolderPath, workFolderPath)
+    
+def main(arguments=None):
+    if arguments == None:
+        actualArguments = sys.argv
+    else:
+        actualArguments = arguments
+
+    # Parse and validate command line options.
+    options, sourceFolderPath, workFolderPath = parsedOptions(actualArguments)
+
+    # Set up logging and encoding.
+    _setUpLogging(_NameToLogLevelMap[options.logLevel])
     _setUpEncoding(options.encoding, options.unicodeNormalization)
 
+    # Do the actual work and log any errors.
     exitCode = 1
     try:
         scmWork = createScmWork(workFolderPath)
-        scunch(sourceFolderPath, scmWork, move=options.moveMode)
+        textOptions = TextOptions(options)
+        scunch(sourceFolderPath, scmWork, textOptions, move=options.moveMode)
         if options.isCommit:
             scmWork.commit("", options.commitMessage)
         exitCode = 0
