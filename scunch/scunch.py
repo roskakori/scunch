@@ -972,10 +972,8 @@ class TextOptions(object):
     NameToNewLineMap = {
         'native': os.linesep,
         'dos': '\r\n',
-        'mac': '\r',
         'unix': '\n',
         'crlf': '\r\n',
-        'cr': '\r',
         'lf': '\n'
     }
 
