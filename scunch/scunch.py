@@ -28,7 +28,7 @@ name used during early development was "scmpunch").
 
 
 Installation
-------------
+============
 
 To install ``scunch``, you need:
 
