@@ -4,9 +4,9 @@
 Scunch
 ======
 
-Scunch is a tool to "punch" the files from an unversioned folder into a
-working copy of a source code management (SCM) system and apply
-the necessary SCM operations such as "add" and "remove".
+Scunch updates a working copy of a source code management (SCM) system
+from an external folder and copies, adds and removes files and folders as
+necessary.
 
 Intended scenarios of use are:
 
@@ -894,7 +894,7 @@ class FolderItem(object):
         return self.elements == other.elements
 
     def __unicode__(self):
-        return u"FolderItem(kind=%s, elements=%s)" % (self.kind, self.elements)
+        return u"<FolderItem: kind=%s, elements=%s>" % (self.kind, self.elements)
         
     def __str__(self):
         return unicode(self).encode('utf-8')
@@ -987,7 +987,7 @@ class TextOptions(object):
         
         self._trailingCharactersToStrip = '\n\r'
         if commandLineOptions.isStripTrailing:
-                self._trailingChararactersToStrip += "\t "
+                self._trailingCharactersToStrip += "\t "
         assert commandLineOptions.newLine in TextOptions.NameToNewLineMap
         self.newLine = TextOptions.NameToNewLineMap[commandLineOptions.newLine]
         assert self.newLine
@@ -1027,6 +1027,16 @@ class TextOptions(object):
         result += self.newLine
         return result
 
+    def __unicode__(self):
+        return u"<TextOptions: newLine=%r, charactersToStrip=%r, tabSize=%d, texts=%s>" % (self.newLine, self._trailingCharactersToStrip, self.tabSize, self.textSuffixes)
+        
+    def __str__(self):
+        return unicode(self).encode('utf-8')
+    
+    def __repr__(self):
+        return self.__str__()
+
+
 class ScmPuncher(object):
     """
     Puncher to transform a work copy according to the current state of an external folder.
@@ -1046,7 +1056,7 @@ class ScmPuncher(object):
         self._externalFolderPath = None
         self._addedItems = None
         self._copiedItems = None
-        self._modifiedItems = None
+        self._transferedItems = None
         self._movedItems = None
         self._removedItems = None
 
@@ -1078,7 +1088,7 @@ class ScmPuncher(object):
         # TODO: Change self._*Items from list to set for faster lookup.
         assert (self._addedItems is None) or (itemToSchedule not in self._addedItems, "item scheduled to %s has already been added: %s" % (operation, itemToSchedule))
         assert (self._copiedItems is None) or (itemToSchedule not in self._copiedItems, "item scheduled to %s has already been copied: %s" % (operation, itemToSchedule))
-        assert (self._modifiedItems is None) or (itemToSchedule not in self._modifiedItems, "item scheduled to %s has already been transferred: %s" % (operation, itemToSchedule))
+        assert (self._transferedItems is None) or (itemToSchedule not in self._transferedItems, "item scheduled to %s has already been transferred: %s" % (operation, itemToSchedule))
         assert (self._movedItems is None) or (itemToSchedule not in self._movedItems, "item scheduled to %s has already been moved: %s" % (operation, itemToSchedule))
         assert (self._removedItems is None) or (itemToSchedule not in self._removedItems, "item scheduled to %s has already been removed: %s" % (operation, itemToSchedule))
 
@@ -1100,22 +1110,23 @@ class ScmPuncher(object):
             else:
                 _log.debug('skip removed item in removed folder: "%s"', itemToRemove.relativePath)
     
-    def _modify(self, items):
+    def _transfer(self, items):
         for itemToTransfer in items:
             if not self._isInLastRemovedFolder(itemToTransfer):
                 # TODO: Add option to consider items modified by only checking their date.
                 _log.debug('schedule item for transfer: "%s"', itemToTransfer.relativePath)
                 self._assertScheduledItemIsUnique(itemToTransfer, 'transfer')
-                self._modifiedItems.append(itemToTransfer)
+                self._transferedItems.append(itemToTransfer)
             else:
-                _log.debug('skip modified item in removed folder: "%s"', itemToTransfer.relativePath)
+                _log.debug('skip transferable item in removed folder: "%s"', itemToTransfer.relativePath)
 
     def _copyTextFile(self, sourceFilePath, targetFilePath, textOptions):
         assert textOptions is not None
         with open(sourceFilePath, "rb") as sourceFile:
             with open(targetFilePath, "wb") as targetFile:
                 for line in sourceFile:
-                    targetFile.write(textOptions.convertedLine(line))
+                    lineToWrite = textOptions.convertedLine(line)
+                    targetFile.write(lineToWrite)
         # TODO: Copy attributes similar to `shutil.copy2()`.
 
     def _transferItemFromExternalToWork(self, itemToTransfer, textOptions):
@@ -1155,7 +1166,7 @@ class ScmPuncher(object):
         matcher = difflib.SequenceMatcher(None, self.workItems, self.externalItems)
         _log.debug("matcher: %s", matcher.get_opcodes())
         self._addedItems = []
-        self._modifiedItems = []
+        self._transferedItems = []
         self._removedItems = []
 
         for operation, i1, i2, j1, j2 in matcher.get_opcodes():
@@ -1163,7 +1174,7 @@ class ScmPuncher(object):
             if operation == 'insert':
                 self._add(self.externalItems[j1:j2])
             elif operation == 'equal':
-                self._modify(self.externalItems[j1:j2])
+                self._transfer(self.externalItems[j1:j2])
             elif operation == 'delete':
                 self._remove(self.workItems[i1:i2])
             elif operation == 'replace':
@@ -1177,7 +1188,7 @@ class ScmPuncher(object):
                     replacedExternalItems = set(self.externalItems[j1:j2])
                     if replaceditem in replacedExternalItems:
                         if replaceditem in replacedWorkItems:
-                            self._modify([replaceditem])
+                            self._transfer([replaceditem])
                         else:
                             self._add([replaceditem])
                     else:
@@ -1236,14 +1247,14 @@ class ScmPuncher(object):
                 relativePathsToRemove.append(relativePathToRemove)
             # Remove folder and files  using a single command call.
             self.scmWork.remove(relativePathsToRemove, recursive=True, force=True)
-        if self._modifiedItems:
-            _log.info("modify %d items", len(self._modifiedItems))
-            for itemToModify in self._modifiedItems:
-                if itemToModify.kind == FolderItem.Folder:
-                    makeFolder(self._workPathFor(itemToModify))
+        if self._transferedItems:
+            _log.info("transfer %d items", len(self._transferedItems))
+            for itemToTransfer in self._transferedItems:
+                if itemToTransfer.kind == FolderItem.Folder:
+                    makeFolder(self._workPathFor(itemToTransfer))
                 else:
-                    _log.info('  copy "%s"', itemToModify.relativePath)
-                    self._transferItemFromExternalToWork(itemToModify, textOptions)
+                    _log.info('  transfer "%s"', itemToTransfer.relativePath)
+                    self._transferItemFromExternalToWork(itemToTransfer, textOptions)
         if self._addedItems:
             _log.info("add %d items", len(self._addedItems))
             relativePathsToAdd = []
@@ -1540,9 +1551,8 @@ _NameToLogLevelMap = {
 
 _Usage = """%prog [options] FOLDER [WORK-FOLDER]
     
-  Punch files and folders from an unversioned FOLDER into a SCM systems'
-  work copy at WORK-FOLDER and perform the required add and remove
-  operations."""
+  Update a working copy of a source code management (SCM) system from an
+  external folder and copy, add and remove files and folders as necessary."""
 
 def parsedOptions(arguments):
     assert arguments is not None
@@ -1567,7 +1577,7 @@ def parsedOptions(arguments):
     (options, others) = parser.parse_args(arguments[1:])
     if options.tabSize < TextOptions.PreserveTabs:
         parser.error("value for --tabsize is %d but must be at least %d" % (options.tabSize, TextOptions.PreserveTabs))
-    if not options.textSuffixes is None:
+    if options.textSuffixes is None:
         if options.newLine:
             parser.error("option --text must be set to enable option --newline")
         if options.isStripTrailing:

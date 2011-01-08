@@ -299,45 +299,89 @@ class ScmPuncherTest(_SvnTest):
         self.assertNonNormalStatus({scunch.ScmStatus.Added: 2, scunch.ScmStatus.Removed: 2})
         self._testAfterPunch(testPunchWithMovedFilesPath)
 
-    def _testTextOptions(self, cliTextOptions):
-        self.setUpProject("punchText")
-        scmWork = self.scmWork
+    def _assertWorkTextFileEquals(self, correspondingExternalTextFilePath, expectedContent):
+        assert correspondingExternalTextFilePath is not None
+        assert expectedContent is not None
+        
+        correspondingExternalTextFileName = os.path.basename(correspondingExternalTextFilePath)
+        relativeWorkFileToTestPath = os.path.join("texts", correspondingExternalTextFileName)
+        workFileToTestPath = self.scmWork.absolutePath("work text file", relativeWorkFileToTestPath)
+        with open(workFileToTestPath, "rb") as fileToTest:
+            actualContent = ""
+            hasDataLeftToRead = True
+            while hasDataLeftToRead:
+                data = fileToTest.read()
+                hasDataLeftToRead = len(data)
+                if hasDataLeftToRead:
+                    actualContent += data
+        self.assertEqual(actualContent, expectedContent, 'content of "%s" must match: %r != %r' % (workFileToTestPath, actualContent, expectedContent))
 
-        self.testPunchTextPath = self.createTestFolder("testPunchText")
-        scmWork.exportTo(self.testPunchTextPath, clear=True)
-
-        # Create a folder with a couple of messed up text files.
-        # TODO: Store paths in work copy as attributes: self.textsFolderPath = scmWork.absolutePath("test text folder path", "texts")
+    def _setTextFilePaths(self):
         self.textsFolderPath = os.path.join(self.testPunchTextPath, "texts")
-        scunch.makeFolder(self.textsFolderPath)
         self.dosNewLineTxtPath = os.path.join(self.textsFolderPath, "dosNewLine.txt")
-        self.writeBinaryFile(self.dosNewLineTxtPath, "1\r\n2\r\n")
-        self.macNewLineTxtPath = os.path.join(self.textsFolderPath, "macNewLine.txt")
-        self.writeBinaryFile(self.macNewLineTxtPath, "1\r2\r")
+        self.tabAndTrailingSpaceTxtPath = os.path.join(self.textsFolderPath, "tabAndTrailingSpace.txt")
         self.unixNewLineTxtPath = os.path.join(self.textsFolderPath, "unixNewLine.txt")
-        self.writeBinaryFile(self.unixNewLineTxtPath, "1\n2\n")
         self.mixedNewLineTxtPath = os.path.join(self.textsFolderPath, "mixedNewLine.txt")
-        self.writeBinaryFile(self.mixedNewLineTxtPath, "1\r\n2\n3\r")
         self.noNewLineTxtPath = os.path.join(self.textsFolderPath, "noNewLine.txt")
-        self.writeBinaryFile(self.noNewLineTxtPath, "1")
         self.emptyTxtPath = os.path.join(self.textsFolderPath, "empty.txt")
+
+    def _testTextOptions(self, cliTextOptions=[], expectedContents={}):
+        scmWork = self.scmWork
+        # Create a folder with a couple of messed up text files.
+        scunch.makeFolder(self.textsFolderPath)
+        self.writeBinaryFile(self.dosNewLineTxtPath, "1\r\n2\r\n")
+        self.writeBinaryFile(self.unixNewLineTxtPath, "1\n2\n")
+        self.writeBinaryFile(self.mixedNewLineTxtPath, "1\r\n2\n3\r")
+        self.writeBinaryFile(self.mixedNewLineTxtPath, "1\r\n2\n3\r\n4\n")
+        self.writeBinaryFile(self.noNewLineTxtPath, "1")
+        self.writeBinaryFile(self.tabAndTrailingSpaceTxtPath, ".\t1 \n")
         self.writeBinaryFile(self.emptyTxtPath, "")
 
         arguments = ["<test>", "--text", "txt"]
         arguments.extend(cliTextOptions)
+        if not "--newline" in cliTextOptions:
+            arguments.extend(("--newline", "native"))
         arguments.append(self.testPunchTextPath)
         arguments.append(scmWork.absolutePath("test work folder", ""))
         options, sourceFolderPath, _ = scunch.parsedOptions(arguments)
         textOptions = scunch.TextOptions(options)
         scunch.scunch(sourceFolderPath, scmWork, textOptions, move=options.moveMode)
 
+        for filePathToTest, expectedContent in expectedContents.items():
+            self._assertWorkTextFileEquals(filePathToTest, expectedContent)
+
         scmWork.addUnversioned("")
-        self.assertNonNormalStatus({scunch.ScmStatus.Added: 7})
+        self.assertNonNormalStatus({scunch.ScmStatus.Added: 1 + len(expectedContents)})
         self._testAfterPunch(self.testPunchTextPath, textOptions)
 
-    def testTextOptions(self):
-        self._testTextOptions([])
+    def testTextOptionsNative(self):
+        self.setUpProject("punchTextNative")
+        self.testPunchTextPath = self.createTestFolder("testPunchTextNative")
+        self.scmWork.exportTo(self.testPunchTextPath, clear=True)
+        self._setTextFilePaths()
+        self._testTextOptions([], {
+            self.dosNewLineTxtPath: "1%s2%s" % (os.linesep, os.linesep),
+            self.unixNewLineTxtPath: "1%s2%s"  % (os.linesep, os.linesep),
+            self.mixedNewLineTxtPath: "1%s2%s3%s4%s" % (os.linesep, os.linesep, os.linesep, os.linesep),
+            self.noNewLineTxtPath: "1%s" % os.linesep,
+            self.emptyTxtPath: "",
+            self.tabAndTrailingSpaceTxtPath: ".\t1 %s" % os.linesep,
+        })
+
+    def testTextOptionsUnixSpaceStrip(self):
+        self.setUpProject("punchTextNativeSpaceStrip")
+        self.testPunchTextPath = self.createTestFolder("testPunchTextNativeSpaceStrip")
+        self.scmWork.exportTo(self.testPunchTextPath, clear=True)
+        self._setTextFilePaths()
+        self._testTextOptions(["--newline", "unix", "--tabsize", "4", "--strip-trailing"], {
+            self.dosNewLineTxtPath: "1\n2\n",
+            self.unixNewLineTxtPath: "1\n2\n",
+            self.mixedNewLineTxtPath: "1\n2\n3\n4\n",
+            self.noNewLineTxtPath: "1\n",
+            self.emptyTxtPath: "",
+            self.tabAndTrailingSpaceTxtPath: ".   1\n",
+        })
 
 if __name__ == '__main__':
-    scunch._setUpLogging(logging.DEBUG)
+    scunch._setUpLogging(logging.INFO)
     unittest.main()
