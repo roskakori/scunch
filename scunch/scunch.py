@@ -969,31 +969,28 @@ class TextOptions(object):
     # Special tab size indicating that tabs should be preserved.    
     PreserveTabs = 0
 
-    NameToNewLineMap = {
-        'native': os.linesep,
-        'dos': '\r\n',
-        'unix': '\n',
-        'crlf': '\r\n',
-        'lf': '\n'
-    }
+    # Possible values for property ``newLine``..
+    Dos = '\r\n'
+    Native = os.linesep
+    Unix = '\n'
 
-    def __init__(self, commandLineOptions):
-        assert commandLineOptions is not None
-        assert commandLineOptions.tabSize is not None
-        assert commandLineOptions.tabSize >= 0
-        assert commandLineOptions.newLine in TextOptions.NameToNewLineMap.keys(), 'newLine=%r' % commandLineOptions.newLine 
-        
+    _ValidNewLines = set((Dos, Native, Unix))
+
+    def __init__(self, textSuffixes=None, newLine=Native, tabSize=PreserveTabs, stripTrailing=False):
+        assert newLine in TextOptions._ValidNewLines
+        assert tabSize is not None
+        assert tabSize >= TextOptions.PreserveTabs
+
         self._trailingCharactersToStrip = '\n\r'
-        if commandLineOptions.isStripTrailing:
+        if stripTrailing:
                 self._trailingCharactersToStrip += "\t "
-        assert commandLineOptions.newLine in TextOptions.NameToNewLineMap
-        self.newLine = TextOptions.NameToNewLineMap[commandLineOptions.newLine]
+        self.newLine = newLine
         assert self.newLine
-        self.tabSize = commandLineOptions.tabSize
-        if commandLineOptions.textSuffixes:
+        self.tabSize = tabSize
+        if textSuffixes:
             # Split string with comma separated suffixes into set of lower case suffixes with
             # leading and trailing blanks removed.
-            self.textSuffixes = set([item.strip().lower() for item in commandLineOptions.textSuffixes.split(",")])
+            self.textSuffixes = set([item.strip().lower() for item in textSuffixes.split(",")])
         else:
             self.textSuffixes = None
 
@@ -1547,6 +1544,28 @@ _NameToLogLevelMap = {
     'error': logging.ERROR
 }
 
+_NameToNewLineMap = {
+    'native': os.linesep,
+    'dos': TextOptions.Dos,
+    'unix': '\n',
+    'crlf': '\r\n',
+    'lf': '\n'
+}
+
+def _createTextOptions(self, commandLineOptions):
+    assert commandLineOptions is not None
+    assert commandLineOptions.tabSize is not None
+    assert commandLineOptions.tabSize >= 0
+    assert commandLineOptions.newLine in TextOptions.NameToNewLineMap.keys(), 'newLine=%r' % commandLineOptions.newLine 
+
+    result = TextOptions(
+        commandLineOptions.textSuffixes,
+        TextOptions.NameToNewLineMap[commandLineOptions.newLine],
+        commandLineOptions.tabSize,
+        commandLineOptions.isStripTrailing
+    )
+    return result
+
 _Usage = """%prog [options] FOLDER [WORK-FOLDER]
     
   Update a working copy of a source code management (SCM) system from an
@@ -1561,7 +1580,7 @@ def parsedOptions(arguments):
     parser.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help='text for commit message (default: "%default")')
     parser.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help='criteria to detect moved files (default: "%default")')
     textGroup = optparse.OptionGroup(parser, "Text file conversion options")
-    textGroup.add_option("-N", "--newline", dest="newLine", metavar="KIND", type="choice", choices=sorted(TextOptions.NameToNewLineMap.keys()), help='separator at the end of line in --text files (default: "native")')
+    textGroup.add_option("-N", "--newline", dest="newLine", metavar="KIND", type="choice", choices=sorted(_NameToNewLineMap.keys()), help='separator at the end of line in --text files (default: "native")')
     textGroup.add_option("-S", "--strip-trailing", action="store_true", dest="isStripTrailing", help="strip trailing white space from --text files")
     textGroup.add_option("-t", "--text", dest="textSuffixes", metavar="SUFFIXES", help='comma separated list of file name suffixes to treat as text files (default: none)')
     textGroup.add_option("-T", "--tabsize", default=TextOptions.PreserveTabs, dest="tabSize", metavar="NUMBER", type=long, help='number of spaces to allign tabs with in --text files; %d=keep tab (default: %%default)' % TextOptions.PreserveTabs)
@@ -1614,7 +1633,7 @@ def main(arguments=None):
     exitCode = 1
     try:
         scmWork = createScmWork(workFolderPath)
-        textOptions = TextOptions(options)
+        textOptions = _createTextOptions(options)
         scunch(sourceFolderPath, scmWork, textOptions, move=options.moveMode)
         if options.isCommit:
             scmWork.commit("", options.commitMessage)

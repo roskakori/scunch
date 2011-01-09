@@ -138,7 +138,7 @@ class _SvnTest(_ScmTest):
         forRangePyPath = os.path.join(loopsFolderPath, "forRange.py")
         whilePyPath = os.path.join(loopsFolderPath, "while.py")
         self.writeTextFile(forRangePyPath, ["for i in range(5):", "    print i"])
-        self.writeTextFile(whilePyPath, ["i = 0", "while i < 5:", "     print i", "    i += 1"])
+        self.writeTextFile(whilePyPath, ["i = 0", "while i < 5:", "    print i", "    i += 1"])
 
         # Create a folder "media" with a couple of files."
         mediaFolderPath = self.scmWork.absolutePath("test folder path", "media")
@@ -325,7 +325,7 @@ class ScmPuncherTest(_SvnTest):
         self.noNewLineTxtPath = os.path.join(self.textsFolderPath, "noNewLine.txt")
         self.emptyTxtPath = os.path.join(self.textsFolderPath, "empty.txt")
 
-    def _testTextOptions(self, cliTextOptions=[], expectedContents={}):
+    def _testTextOptions(self, textOptions=None, expectedTextFileContents={}):
         scmWork = self.scmWork
         # Create a folder with a couple of messed up text files.
         scunch.makeFolder(self.textsFolderPath)
@@ -337,21 +337,13 @@ class ScmPuncherTest(_SvnTest):
         self.writeBinaryFile(self.tabAndTrailingSpaceTxtPath, ".\t1 \n")
         self.writeBinaryFile(self.emptyTxtPath, "")
 
-        arguments = ["<test>", "--text", "txt"]
-        arguments.extend(cliTextOptions)
-        if not "--newline" in cliTextOptions:
-            arguments.extend(("--newline", "native"))
-        arguments.append(self.testPunchTextPath)
-        arguments.append(scmWork.absolutePath("test work folder", ""))
-        options, sourceFolderPath, _ = scunch.parsedOptions(arguments)
-        textOptions = scunch.TextOptions(options)
-        scunch.scunch(sourceFolderPath, scmWork, textOptions, move=options.moveMode)
+        scunch.scunch(self.testPunchTextPath, scmWork, textOptions=textOptions)
 
-        for filePathToTest, expectedContent in expectedContents.items():
+        for filePathToTest, expectedContent in expectedTextFileContents.items():
             self._assertWorkTextFileEquals(filePathToTest, expectedContent)
 
         scmWork.addUnversioned("")
-        self.assertNonNormalStatus({scunch.ScmStatus.Added: 1 + len(expectedContents)})
+        self.assertNonNormalStatus({scunch.ScmStatus.Added: 1 + len(expectedTextFileContents)})
         self._testAfterPunch(self.testPunchTextPath, textOptions)
 
     def testTextOptionsNative(self):
@@ -359,28 +351,34 @@ class ScmPuncherTest(_SvnTest):
         self.testPunchTextPath = self.createTestFolder("testPunchTextNative")
         self.scmWork.exportTo(self.testPunchTextPath, clear=True)
         self._setTextFilePaths()
-        self._testTextOptions([], {
-            self.dosNewLineTxtPath: "1%s2%s" % (os.linesep, os.linesep),
-            self.unixNewLineTxtPath: "1%s2%s"  % (os.linesep, os.linesep),
-            self.mixedNewLineTxtPath: "1%s2%s3%s4%s" % (os.linesep, os.linesep, os.linesep, os.linesep),
-            self.noNewLineTxtPath: "1%s" % os.linesep,
-            self.emptyTxtPath: "",
-            self.tabAndTrailingSpaceTxtPath: ".\t1 %s" % os.linesep,
-        })
+        self._testTextOptions(
+            scunch.TextOptions("txt"),
+            {
+                self.dosNewLineTxtPath: "1%s2%s" % (os.linesep, os.linesep),
+                self.unixNewLineTxtPath: "1%s2%s"  % (os.linesep, os.linesep),
+                self.mixedNewLineTxtPath: "1%s2%s3%s4%s" % (os.linesep, os.linesep, os.linesep, os.linesep),
+                self.noNewLineTxtPath: "1%s" % os.linesep,
+                self.emptyTxtPath: "",
+                self.tabAndTrailingSpaceTxtPath: ".\t1 %s" % os.linesep,
+            }
+        )
 
     def testTextOptionsUnixSpaceStrip(self):
         self.setUpProject("punchTextNativeSpaceStrip")
         self.testPunchTextPath = self.createTestFolder("testPunchTextNativeSpaceStrip")
         self.scmWork.exportTo(self.testPunchTextPath, clear=True)
         self._setTextFilePaths()
-        self._testTextOptions(["--newline", "unix", "--tabsize", "4", "--strip-trailing"], {
-            self.dosNewLineTxtPath: "1\n2\n",
-            self.unixNewLineTxtPath: "1\n2\n",
-            self.mixedNewLineTxtPath: "1\n2\n3\n4\n",
-            self.noNewLineTxtPath: "1\n",
-            self.emptyTxtPath: "",
-            self.tabAndTrailingSpaceTxtPath: ".   1\n",
-        })
+        self._testTextOptions(
+            scunch.TextOptions("txt", scunch.TextOptions.Unix, 4, True),
+            {
+                self.dosNewLineTxtPath: "1\n2\n",
+                self.unixNewLineTxtPath: "1\n2\n",
+                self.mixedNewLineTxtPath: "1\n2\n3\n4\n",
+                self.noNewLineTxtPath: "1\n",
+                self.emptyTxtPath: "",
+                self.tabAndTrailingSpaceTxtPath: ".   1\n",
+            }
+        )
 
 if __name__ == '__main__':
     scunch._setUpLogging(logging.INFO)
