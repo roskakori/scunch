@@ -14,9 +14,12 @@ Intended scenarios of use are:
   party.
 * Automatic version management of typically unversioned centralized
   resources such as server configuration files.
-* Pseudo version management for users that have issues with manual version
-  management (usual suspects are: managers, graphical artists, mainframe
-  elders, ...).
+* Migration of projects using folder based version management to a proper
+  SCM.
+.. TODO: Elaborate the below scenario.
+.. * Pseudo version management for users that have issues with manual version
+..   management (usual suspects are: managers, graphical artists, mainframe
+..   elders, ...).
 
 Currently supported SCM systems are:
 
