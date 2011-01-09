@@ -534,7 +534,9 @@ import urlparse
 import xml.sax
 from xml.sax.handler import ContentHandler
 
-__version_info__ = (0, 4, 0)
+import _tools
+
+__version_info__ = (0, 4, 1)
 __version__ = '.'.join(unicode(item) for item in __version_info__)
 
 _log = logging.getLogger("scunch")
@@ -563,7 +565,7 @@ def _setUpEncoding(consoleEncoding='auto', consoleNormalization='auto'):
     assert consoleEncoding is not None
     assert consoleNormalization in _ValidConsoleNormalizations, "consoleNormalization=%r" % consoleNormalization
 
-    # TODO: Redesign console encoding to get rid of ugly globals.
+    # TODO: #9: Redesign console encoding to get rid of ugly globals.
     global _consoleEncoding
     global _consoleNormalization
     
@@ -650,26 +652,6 @@ def run(commandAndOptions, returnStdout=False, cwd=None):
     finally:
         os.remove(stderrPath)
     return result
-
-def removeFolder(folderPathToRemove):
-    # Attempt to remove the folder, ignoring any errors.
-    _log.info("remove folder \"%s\"", folderPathToRemove)
-    shutil.rmtree(folderPathToRemove, True)
-    if os.path.exists(folderPathToRemove):
-        # If the folder still exists after the removal, try to remove it again but this
-        # time with errors raised. In most cases, this will result in a proper error message
-        # explaining why the folder could not be removed the first time.
-        shutil.rmtree(folderPathToRemove)
-
-def makeFolder(folderPathToMake):
-    """
-    Like `os.makedirs` but does nothing if the folder already exists.
-    """
-    try:
-        os.makedirs(folderPathToMake)
-    except OSError, error:
-        if error.errno !=  errno.EEXIST:
-            raise
 
 class ScmError(Exception):
     pass
@@ -1246,7 +1228,7 @@ class ScmPuncher(object):
             _log.info("transfer %d items", len(self._transferedItems))
             for itemToTransfer in self._transferedItems:
                 if itemToTransfer.kind == FolderItem.Folder:
-                    makeFolder(self._workPathFor(itemToTransfer))
+                    _tools.makeFolder(self._workPathFor(itemToTransfer))
                 else:
                     _log.info('  transfer "%s"', itemToTransfer.relativePath)
                     self._transferItemFromExternalToWork(itemToTransfer, textOptions)
@@ -1259,7 +1241,7 @@ class ScmPuncher(object):
                 _log.info('  add "%s"', relativePathToAdd)
                 relativePathsToAdd.append(relativePathToAdd)
                 if itemToAdd.kind == FolderItem.Folder:
-                    makeFolder(self._workPathFor(itemToAdd))
+                    _tools.makeFolder(self._workPathFor(itemToAdd))
                 else:
                     self._transferItemFromExternalToWork(itemToAdd, textOptions)
             # Add folders and files to SCM using a single command call.
@@ -1322,7 +1304,7 @@ class ScmWork(object):
         Remove work copy folder and all its contents.
         """
         _log.info("remove work copy at \"%s\"", self.localTargetPath)
-        removeFolder(self.localTargetPath)
+        _tools.removeFolder(self.localTargetPath)
         
     def checkout(self):
         _log.info("check out work copy at \"%s\"", self.localTargetPath)
@@ -1496,7 +1478,7 @@ class ScmWork(object):
         assert targetFolderPath
         folderPathToExport = self.absolutePath("export path", relativePathToExport)
         if clear:
-            removeFolder(targetFolderPath)
+            _tools.removeFolder(targetFolderPath)
         _log.info("export \"%s\" to \"%s\"", folderPathToExport, targetFolderPath)
         shutil.copytree(folderPathToExport, targetFolderPath, ignore=shutil.ignore_patterns(".svn", "_svn"))
 
@@ -1575,19 +1557,19 @@ def parsedOptions(arguments):
     assert arguments is not None
 
     parser = optparse.OptionParser(usage=_Usage, version="%prog " + __version__)
-    parser.add_option("-c", "--commit", action="store_true", dest="isCommit", help="after punching the changes into the work copy, commit them")
-    parser.add_option("-L", "--log", default='info', dest="logLevel", metavar="LEVEL", type="choice", choices=sorted(_NameToLogLevelMap.keys()), help='logging level (default: "%default")')
-    parser.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help='text for commit message (default: "%default")')
-    parser.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help='criteria to detect moved files (default: "%default")')
-    textGroup = optparse.OptionGroup(parser, "Text file conversion options")
-    textGroup.add_option("-N", "--newline", dest="newLine", metavar="KIND", type="choice", choices=sorted(_NameToNewLineMap.keys()), help='separator at the end of line in --text files (default: "native")')
-    textGroup.add_option("-S", "--strip-trailing", action="store_true", dest="isStripTrailing", help="strip trailing white space from --text files")
-    textGroup.add_option("-t", "--text", dest="textSuffixes", metavar="SUFFIXES", help='comma separated list of file name suffixes to treat as text files (default: none)')
-    textGroup.add_option("-T", "--tabsize", default=TextOptions.PreserveTabs, dest="tabSize", metavar="NUMBER", type=long, help='number of spaces to allign tabs with in --text files; %d=keep tab (default: %%default)' % TextOptions.PreserveTabs)
+    parser.add_option("-c", "--commit", action="store_true", dest="isCommit", help=u"after punching the changes into the work copy, commit them")
+    parser.add_option("-L", "--log", default='info', dest="logLevel", metavar="LEVEL", type="choice", choices=sorted(_NameToLogLevelMap.keys()), help=u'logging level (default: "%default")')
+    parser.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help=u'text for commit message (default: "%default")')
+    parser.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help=u'criteria to detect moved files (default: "%default")')
+    textGroup = optparse.OptionGroup(parser, u"Text file conversion options")
+    textGroup.add_option("-N", "--newline", dest="newLine", metavar="KIND", type="choice", choices=sorted(_NameToNewLineMap.keys()), help=u'separator at the end of line in --text files (default: "native")')
+    textGroup.add_option("-S", "--strip-trailing", action="store_true", dest="isStripTrailing", help=u"strip trailing white space from --text files")
+    textGroup.add_option("-t", "--text", dest="textSuffixes", metavar="SUFFIXES", help=u'comma separated list of file name suffixes to treat as text files (default: none)')
+    textGroup.add_option("-T", "--tabsize", default=TextOptions.PreserveTabs, dest="tabSize", metavar="NUMBER", type=long, help=u'number of spaces to allign tabs with in --text files; %d=keep tab (default: %%default)' % TextOptions.PreserveTabs)
     parser.add_option_group(textGroup)
-    encodingGroup = optparse.OptionGroup(parser, "Console encoding options")
-    encodingGroup.add_option("-e", "--encoding", help='encoding to use for running console commands (default: "auto")')
-    encodingGroup.add_option("-n", "--normalize", default='auto', dest="unicodeNormalization", metavar="FORM", type="choice", choices=sorted(_ValidConsoleNormalizations), help='uncode normalization to use for running console commands (default: "%default")')
+    encodingGroup = optparse.OptionGroup(parser, u"Console encoding options")
+    encodingGroup.add_option("-e", "--encoding", help=u'encoding to use for running console commands (default: "auto")')
+    encodingGroup.add_option("-n", "--normalize", default='auto', dest="unicodeNormalization", metavar="FORM", type="choice", choices=sorted(_ValidConsoleNormalizations), help=u'uncode normalization to use for running console commands (default: "%default")')
     parser.add_option_group(encodingGroup)
 
     # Parse and validate command line options.
@@ -1607,7 +1589,7 @@ def parsedOptions(arguments):
         parser.error("FOLDER to punch into work copy must be specified")
     elif othersCount == 1:
         sourceFolderPath = others[0]
-        workFolderPath = os.getcwd()
+        workFolderPath = os.getcwdu()
     elif othersCount == 2:
         sourceFolderPath = others[0]
         workFolderPath = others[1]

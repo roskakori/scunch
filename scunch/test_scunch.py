@@ -24,14 +24,12 @@ import unittest
 from urlparse import urljoin
 
 import scunch
+import _tools
 
 _log = logging.getLogger("test")
 
 _BaseTestFolder = os.path.abspath("test")
 
-def makeEmptyFolder(folderPathToCreate):
-    scunch.removeFolder(folderPathToCreate)
-    scunch.makeFolder(folderPathToCreate)
 
 class ToolsTest(unittest.TestCase):
     def testRunWithAsciiEcho(self):
@@ -63,14 +61,14 @@ class _ScmTest(unittest.TestCase):
         self.scmWork = None
 
         _log.debug("clean up test folder at %r", self.testFolderPath)
-        makeEmptyFolder(self.testFolderPath)
+        _tools.makeEmptyFolder(self.testFolderPath)
 
     def createTestFolder(self, name):
         """An empty folder named ``name`` in the test folder."""
         assert name
 
         result = os.path.join(self.testFolderPath, name)
-        makeEmptyFolder(result)
+        _tools.makeEmptyFolder(result)
         return result
 
     def writeBinaryFile(self, targetFilePath, data):
@@ -134,7 +132,7 @@ class _SvnTest(_ScmTest):
 
         # Create a folder "loops" with a couple of Python source codes."
         loopsFolderPath = self.scmWork.absolutePath("test folder path", "loops")
-        scunch.makeFolder(loopsFolderPath)
+        _tools.makeFolder(loopsFolderPath)
         forRangePyPath = os.path.join(loopsFolderPath, "forRange.py")
         whilePyPath = os.path.join(loopsFolderPath, "while.py")
         self.writeTextFile(forRangePyPath, ["for i in range(5):", "    print i"])
@@ -142,7 +140,7 @@ class _SvnTest(_ScmTest):
 
         # Create a folder "media" with a couple of files."
         mediaFolderPath = self.scmWork.absolutePath("test folder path", "media")
-        scunch.makeFolder(mediaFolderPath)
+        _tools.makeFolder(mediaFolderPath)
         speechHtmlPath = os.path.join(loopsFolderPath, "speech.html")
         self.writeTextFile(speechHtmlPath, ["<html><head><title>A great speech</title></head><body>", "<h1>A great speech</h1>", "<p>Uhm...</p>", "</body></html>"])
         # TODO: Add binary PNG test file.
@@ -272,7 +270,7 @@ class ScmPuncherTest(_SvnTest):
         whilePyPath = os.path.join(testPunchWithRemovePath, "loops", "while.py")
         os.remove(whilePyPath)
         mediaPath = os.path.join(testPunchWithRemovePath, "media")
-        scunch.removeFolder(mediaPath)
+        _tools.removeFolder(mediaPath)
 
         addingPuncher = scunch.ScmPuncher(scmWork)
         addingPuncher.punch(testPunchWithRemovePath)
@@ -328,7 +326,7 @@ class ScmPuncherTest(_SvnTest):
     def _testTextOptions(self, textOptions=None, expectedTextFileContents={}):
         scmWork = self.scmWork
         # Create a folder with a couple of messed up text files.
-        scunch.makeFolder(self.textsFolderPath)
+        _tools.makeFolder(self.textsFolderPath)
         self.writeBinaryFile(self.dosNewLineTxtPath, "1\r\n2\r\n")
         self.writeBinaryFile(self.unixNewLineTxtPath, "1\n2\n")
         self.writeBinaryFile(self.mixedNewLineTxtPath, "1\r\n2\n3\r")
