@@ -192,6 +192,56 @@ class ScunchTest(_SvnTest):
         scunch.scunch(testScunchWithChangesPath, scmWork)
         self.assertNonNormalStatus({scunch.ScmStatus.Added: 1, scunch.ScmStatus.Removed: 1})
 
+    def _testMain(self, cliOptions, currentFolderPathToSet=None, expectedExitCode=0):
+        logLevelAtStartOfTest = _log.level
+        currentFolderPathAtStartOfTest = os.getcwdu()
+        try:
+            arguments = ["scunch.test"]
+            arguments.extend(cliOptions)
+            if currentFolderPathToSet:
+                os.chdir(currentFolderPathToSet)
+            exitCode = scunch.main(arguments)
+        finally:
+            os.chdir(currentFolderPathAtStartOfTest)
+            _log.setLevel(logLevelAtStartOfTest)
+        return exitCode
+
+    def _testMainWithSystemExit(self, cliOptions, expectedExitCode=0):
+        oldLogLevel = _log.level
+        try:
+            arguments = ["scunch.test"]
+            arguments.extend(cliOptions)
+            scunch.main(arguments)
+            self.fail("expected SystemExit with code=%d" % expectedExitCode)
+        except SystemExit, error:
+            if expectedExitCode:
+                self.assertEqual(error.code, expectedExitCode)
+        finally:
+            _log.setLevel(oldLogLevel)
+
+    def testMainHelp(self):
+        self._testMainWithSystemExit(["--help"])
+
+    def testMainVersion(self):
+        self._testMainWithSystemExit(["--version"])
+        
+    def testMainBrokenOption(self):
+        self._testMainWithSystemExit(["--no-such-option"], 2)
+
+    def testMainWithImplicitWork(self):
+        self.setUpProject("mainWithImplicitWork")
+        scmWork = self.scmWork
+
+        testScunchWithClonePath = self.createTestFolder("testMainWithImplicitWork")
+        scmWork.exportTo(testScunchWithClonePath, clear=True)
+        
+        implicitWorkPath = scmWork.absolutePath("implicit work folder", "")
+        # Assertion to make sure that major screw ups will not destroy scunch's source code.
+        queriedWorkName = os.path.basename(os.path.dirname(implicitWorkPath))
+        self.assertTrue(queriedWorkName == "mainWithImplicitWork", "queriedWorkName=%r, implicitWorkPath=%r" % (queriedWorkName, implicitWorkPath))
+        
+        self._testMain([testScunchWithClonePath], implicitWorkPath)
+
 class ScmPuncherTest(_SvnTest):
     """
     TestCase for `scunch.ScmPuncher`.

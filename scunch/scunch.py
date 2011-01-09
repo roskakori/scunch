@@ -467,7 +467,8 @@ Version history
 
 **Version 0.4.1, 08-Jan-2001**
 
-Cleaned up command line help and code.
+* Fixed ``AssertionError`` if no explicit ``--encoding`` was specified.
+* Cleaned up command line help and code.
 
 **Version 0.4, 08-Jan-2011**
 
@@ -1538,15 +1539,15 @@ _NameToNewLineMap = {
     'lf': '\n'
 }
 
-def _createTextOptions(self, commandLineOptions):
+def _createTextOptions(commandLineOptions):
     assert commandLineOptions is not None
     assert commandLineOptions.tabSize is not None
     assert commandLineOptions.tabSize >= 0
-    assert commandLineOptions.newLine in TextOptions.NameToNewLineMap.keys(), 'newLine=%r' % commandLineOptions.newLine 
+    assert commandLineOptions.newLine in _NameToNewLineMap.keys(), 'newLine=%r' % commandLineOptions.newLine 
 
     result = TextOptions(
         commandLineOptions.textSuffixes,
-        TextOptions.NameToNewLineMap[commandLineOptions.newLine],
+        _NameToNewLineMap[commandLineOptions.newLine],
         commandLineOptions.tabSize,
         commandLineOptions.isStripTrailing
     )
@@ -1571,7 +1572,7 @@ def parsedOptions(arguments):
     textGroup.add_option("-T", "--tabsize", default=TextOptions.PreserveTabs, dest="tabSize", metavar="NUMBER", type=long, help=u'number of spaces to allign tabs with in --text files; %d=keep tab (default: %%default)' % TextOptions.PreserveTabs)
     parser.add_option_group(textGroup)
     consoleGroup = optparse.OptionGroup(parser, u"Console and logging options")
-    consoleGroup.add_option("-e", "--encoding", help=u'encoding to use for running console commands (default: "auto")')
+    consoleGroup.add_option("-e", "--encoding", default='auto', help=u'encoding to use for running console commands (default: "%default")')
     consoleGroup.add_option("-L", "--log", default='info', dest="logLevel", metavar="LEVEL", type="choice", choices=sorted(_NameToLogLevelMap.keys()), help=u'logging level (default: "%default")')
     consoleGroup.add_option("-n", "--normalize", default='auto', dest="unicodeNormalization", metavar="FORM", type="choice", choices=sorted(_ValidConsoleNormalizations), help=u'uncode normalization to use for running console commands (default: "%default")')
     parser.add_option_group(consoleGroup)
@@ -1610,6 +1611,7 @@ def main(arguments=None):
 
     # Parse and validate command line options.
     options, sourceFolderPath, workFolderPath = parsedOptions(actualArguments)
+    print options
 
     # Set up logging and encoding.
     _setUpLogging(_NameToLogLevelMap[options.logLevel])
