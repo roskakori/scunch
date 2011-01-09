@@ -465,7 +465,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Version history
 ===============
 
-Version 0.4, 08-Jan-2011
+**Version 0.4.1, 08-Jan-2001**
+
+Cleaned up command line help and code.
+
+**Version 0.4, 08-Jan-2011**
 
 Added options to normalize text files and fixed some critical bugs.
 
@@ -482,14 +486,14 @@ Added options to normalize text files and fixed some critical bugs.
 * Fixed processing of internal file name diff sequences of type 'replace',
   which could result in inconsistent work copies.
 
-Version 0.3, 05-Jan-2011
+**Version 0.3, 05-Jan-2011**
 
 * Fixed processing of file names with non ASCII characters for Mac OS X
   and possibly other platforms.
 * Added command lines options ``--encoding`` and ``--normalize`` to
   specify how to deal with non ASCII characters.
 
-Version 0.2, 04-Jan-2011
+**Version 0.2, 04-Jan-2011**
 
 * Fixed ``NotImplementedError``.
 * Added support for moving files with same name instead of performing a
@@ -497,7 +501,7 @@ Version 0.2, 04-Jan-2011
   Use ``--move=none`` to get the old behavior.
 * Cleaned up logging output.
 
-Version 0.1, 03-Jan-2011
+**Version 0.1, 03-Jan-2011**
 
 * Initial release.
 """
@@ -1548,29 +1552,29 @@ def _createTextOptions(self, commandLineOptions):
     )
     return result
 
-_Usage = """%prog [options] FOLDER [WORK-FOLDER]
-    
-  Update a working copy of a source code management (SCM) system from an
-  external folder and copy, add and remove files and folders as necessary."""
+_Usage = "%prog [options] FOLDER [WORK-FOLDER]"
+_Description = """Update svn working copy fom an external folder and copy, add and remove files and folders as necessary."""
 
 def parsedOptions(arguments):
     assert arguments is not None
 
-    parser = optparse.OptionParser(usage=_Usage, version="%prog " + __version__)
-    parser.add_option("-c", "--commit", action="store_true", dest="isCommit", help=u"after punching the changes into the work copy, commit them")
-    parser.add_option("-L", "--log", default='info', dest="logLevel", metavar="LEVEL", type="choice", choices=sorted(_NameToLogLevelMap.keys()), help=u'logging level (default: "%default")')
-    parser.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help=u'text for commit message (default: "%default")')
-    parser.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help=u'criteria to detect moved files (default: "%default")')
+    parser = optparse.OptionParser(usage=_Usage, description=_Description, version="%prog " + __version__)
+    punchGroup = optparse.OptionGroup(parser, u"Punching options")
+    punchGroup.add_option("-c", "--commit", action="store_true", dest="isCommit", help=u"after punching the changes into the work copy, commit them")
+    punchGroup.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help=u'text for commit message (default: "%default")')
+    punchGroup.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help=u'criteria to detect moved files (default: "%default")')
+    parser.add_option_group(punchGroup)
     textGroup = optparse.OptionGroup(parser, u"Text file conversion options")
     textGroup.add_option("-N", "--newline", dest="newLine", metavar="KIND", type="choice", choices=sorted(_NameToNewLineMap.keys()), help=u'separator at the end of line in --text files (default: "native")')
     textGroup.add_option("-S", "--strip-trailing", action="store_true", dest="isStripTrailing", help=u"strip trailing white space from --text files")
     textGroup.add_option("-t", "--text", dest="textSuffixes", metavar="SUFFIXES", help=u'comma separated list of file name suffixes to treat as text files (default: none)')
     textGroup.add_option("-T", "--tabsize", default=TextOptions.PreserveTabs, dest="tabSize", metavar="NUMBER", type=long, help=u'number of spaces to allign tabs with in --text files; %d=keep tab (default: %%default)' % TextOptions.PreserveTabs)
     parser.add_option_group(textGroup)
-    encodingGroup = optparse.OptionGroup(parser, u"Console encoding options")
-    encodingGroup.add_option("-e", "--encoding", help=u'encoding to use for running console commands (default: "auto")')
-    encodingGroup.add_option("-n", "--normalize", default='auto', dest="unicodeNormalization", metavar="FORM", type="choice", choices=sorted(_ValidConsoleNormalizations), help=u'uncode normalization to use for running console commands (default: "%default")')
-    parser.add_option_group(encodingGroup)
+    consoleGroup = optparse.OptionGroup(parser, u"Console and logging options")
+    consoleGroup.add_option("-e", "--encoding", help=u'encoding to use for running console commands (default: "auto")')
+    consoleGroup.add_option("-L", "--log", default='info', dest="logLevel", metavar="LEVEL", type="choice", choices=sorted(_NameToLogLevelMap.keys()), help=u'logging level (default: "%default")')
+    consoleGroup.add_option("-n", "--normalize", default='auto', dest="unicodeNormalization", metavar="FORM", type="choice", choices=sorted(_ValidConsoleNormalizations), help=u'uncode normalization to use for running console commands (default: "%default")')
+    parser.add_option_group(consoleGroup)
 
     # Parse and validate command line options.
     (options, others) = parser.parse_args(arguments[1:])
