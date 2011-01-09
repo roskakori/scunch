@@ -40,7 +40,7 @@ setup(
     name="scunch",
     version=scunch.__version__,
     packages=["scunch"],
-    description="copy folder over working copy and apply add/remove/modify (svn)",
+    description="Update svn working copy from folder.",
     entry_points = {
         'console_scripts': [
             'scunch = scunch.scunch:main'
