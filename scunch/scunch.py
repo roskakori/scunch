@@ -16,10 +16,11 @@ Intended scenarios of use are:
   resources such as server configuration files.
 * Migration of projects using folder based version management to a proper
   SCM.
+  
 .. TODO: Elaborate the below scenario.
-.. * Pseudo version management for users that have issues with manual version
-..   management (usual suspects are: managers, graphical artists, mainframe
-..   elders, ...).
+.. Pseudo version management for users that have issues with manual version
+.. management (usual suspects are: managers, graphical artists, mainframe
+.. elders, ...).
 
 Currently supported SCM systems are:
 
@@ -468,7 +469,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Version history
 ===============
 
-**Version 0.4.1, 08-Jan-2001**
+**Version 0.5.0, xx-Jan-2001**
+
+* ...
+
+**Version 0.4.1, 09-Jan-2001**
 
 * Fixed ``AssertionError`` if no explicit ``--encoding`` was specified.
 * Cleaned up command line help and code.
@@ -544,7 +549,7 @@ from xml.sax.handler import ContentHandler
 
 import _tools
 
-__version_info__ = (0, 4, 1)
+__version_info__ = (0, 5, 0)
 __version__ = '.'.join(unicode(item) for item in __version_info__)
 
 _log = logging.getLogger("scunch")
