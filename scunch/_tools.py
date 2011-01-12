@@ -85,6 +85,59 @@ class AntPatternItem(object):
     def __repr__(self):
         return self.__str__()
 
+def _findItemInList(needle, haystack):
+    return _findListInList([needle], haystack)
+
+def _findListInList(needle, haystack):
+    result = -1
+    needleLength = len(needle)
+    haystackLength = len(haystack)
+    if needle:
+        indexToCheck = 0
+        while (result == -1) and (indexToCheck + needleLength <= haystackLength):
+            print indexToCheck + needleLength, haystackLength, haystack[indexToCheck:indexToCheck + needleLength]
+            if needle == haystack[indexToCheck:indexToCheck + needleLength]:
+                result = indexToCheck
+            else:
+                indexToCheck += 1
+    else:
+        result = 0 
+    return result
+
+def _textItemsAreInPatternItems(textItems, patternItems):
+    """
+    ``True`` if a match for ``textItems`` can be found somewhere in ``patternItems``.
+    """
+    assert textItems is not None
+    assert patternItems is not None
+    for patternItem in patternItems:
+        assert patternItem.kind != AntPatternItem.All
+
+    textItemsLength = len(textItems)
+    if textItemsLength:
+        result = False
+        patternItemsLength = len(patternItems)
+        patternItemIndexToStartSearchAt = 0
+        while not result and (patternItemIndexToStartSearchAt + textItemsLength) <= patternItemsLength:
+            patternItemsToMatch = patternItems[patternItemIndexToStartSearchAt:patternItemIndexToStartSearchAt + textItemsLength]
+            if _textItemsMatchPatternItems(textItems, patternItemsToMatch):
+                result = True
+            else:
+                patternItemIndexToStartSearchAt += 1
+    else:
+        result = not patternItem
+    return result
+
+def _textItemsAreAtEndOfPatternItems(textItems, patternItems):
+    assert textItems is not None
+    assert patternItems is not None
+    for patternItem in patternItems:
+        assert patternItem.kind != AntPatternItem.All
+
+    patternItemsTail = patternItems[-len(textItems):]
+    result = _textItemsMatchPatternItems(textItems, patternItemsTail)
+    return result
+
 def _textItemsMatchPatternItems(textItems, patternItems):
     assert textItems is not None
     assert patternItems is not None
@@ -100,7 +153,19 @@ def _textItemsMatchPatternItems(textItems, patternItems):
                     # "**" at end of pattern matches everything.
                     result = True
                 else:
-                    raise NotImplementedError()
+                    patternItemIndexOfNextAntAllMagic = _findItemInList(_AntAllMagic, patternItems[1:])
+                    assert patternItemIndexOfNextAntAllMagic != 0, "consecutive %r's must be reduced to 1" % _AntAllMagic
+                    if patternItemIndexOfNextAntAllMagic == -1:
+                        patternItemsAfterAllMagic = patternItems[1:]
+                        tailOfTextItems = textItems[-len(patternItemsAfterAllMagic):]
+                        print "piam=", patternItemsAfterAllMagic
+                        print "toti=", tailOfTextItems
+                        result = _textItemsAreAtEndOfPatternItems(tailOfTextItems, patternItemsAfterAllMagic)
+                    else:
+                        raise NotImplementedError()
+                    while not result and len(textItems) <= len(patternItems):
+                        patternItems = patternItems[1:]
+                        result = _textItemsMatchPatternItems(textItems, patternItems)
             else:
                 if firstPatternItem.matches(textItems[0]):
                     result = _textItemsMatchPatternItems(textItems[1:], patternItems[1:])
@@ -113,9 +178,11 @@ def _textItemsMatchPatternItems(textItems, patternItems):
                 # Text matches if pattern is a single empty item or a single "*".
                 if firstPatternItem.kind == AntPatternItem.One:
                     result = not firstPatternItem.pattern
-                else:
-                    assert firstPatternItem.kind == AntPatternItem.Many
+                elif firstPatternItem.kind == AntPatternItem.Many:
                     result = (firstPatternItem.pattern == "*")
+                else:
+                    assert firstPatternItem.kind == AntPatternItem.All
+                    result = True
             else:
                 result = False
     else:
