@@ -76,6 +76,13 @@ class AntPatternItem(object):
             result = (text == self.pattern)
         return result
 
+    def __cmp__(self, other):
+        if isinstance(other, AntPatternItem):
+            result = cmp(self.pattern, other.pattern)
+        else:                                     
+            result = cmp(self.pattern, other)
+        return result    
+
     def __unicode__(self):
         return u"<AntPatternItem: kind=%s, pattern=%r>" % (self.kind, self.pattern)
         
@@ -95,8 +102,9 @@ def _findListInList(needle, haystack):
     if needle:
         indexToCheck = 0
         while (result == -1) and (indexToCheck + needleLength <= haystackLength):
-            print indexToCheck + needleLength, haystackLength, haystack[indexToCheck:indexToCheck + needleLength]
-            if needle == haystack[indexToCheck:indexToCheck + needleLength]:
+            haystackPartToCompareWithNeedle = haystack[indexToCheck:indexToCheck + needleLength]
+            print indexToCheck + needleLength, haystackLength, haystackPartToCompareWithNeedle
+            if needle == haystackPartToCompareWithNeedle:
                 result = indexToCheck
             else:
                 indexToCheck += 1
@@ -153,16 +161,22 @@ def _textItemsMatchPatternItems(textItems, patternItems):
                     # "**" at end of pattern matches everything.
                     result = True
                 else:
-                    patternItemIndexOfNextAntAllMagic = _findItemInList(_AntAllMagic, patternItems[1:])
-                    assert patternItemIndexOfNextAntAllMagic != 0, "consecutive %r's must be reduced to 1" % _AntAllMagic
-                    if patternItemIndexOfNextAntAllMagic == -1:
-                        patternItemsAfterAllMagic = patternItems[1:]
-                        tailOfTextItems = textItems[-len(patternItemsAfterAllMagic):]
-                        print "piam=", patternItemsAfterAllMagic
-                        print "toti=", tailOfTextItems
-                        result = _textItemsAreAtEndOfPatternItems(tailOfTextItems, patternItemsAfterAllMagic)
-                    else:
-                        raise NotImplementedError()
+                    hasFurtherAllPattern = True
+                    patternItemIndexOfCurrentAntAllMagic = 0
+                    while hasFurtherAllPattern:
+                        patternItemIndexOfNextAntAllMagic = _findItemInList(_AntAllMagic, patternItems[patternItemIndexOfCurrentAntAllMagic + 1:])
+                        assert patternItemIndexOfNextAntAllMagic != 0, "consecutive %r must be reduced to 1" % _AntAllMagic
+                        patternItemsBetweenAllMagic = patternItems[patternItemIndexOfNextAntAllMagic:]
+                        if patternItemIndexOfNextAntAllMagic == -1:
+                            # Last "**" encountered; check that tail of text matches end of remaining pattern.
+                            patternItemsBetweenAllMagic = patternItems[patternItemIndexOfNextAntAllMagic:]
+                            tailOfTextItems = textItems[-len(patternItemsBetweenAllMagic):]
+                            result = _textItemsAreAtEndOfPatternItems(tailOfTextItems, patternItemsBetweenAllMagic)
+                            hasFurtherAllPattern = False
+                        else:
+                            patternItemsBetweenAllMagic = patternItems[patternItemIndexOfCurrentAntAllMagic + 1:patternItemIndexOfNextAntAllMagic + 1]
+                            print "pibm2=", patternItemsBetweenAllMagic
+                            raise NotImplementedError()
                     while not result and len(textItems) <= len(patternItems):
                         patternItems = patternItems[1:]
                         result = _textItemsMatchPatternItems(textItems, patternItems)
