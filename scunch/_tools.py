@@ -188,9 +188,9 @@ def _textItemsMatchPatternItems(textItems, patternItems):
     hasTextItems = (len(textItems) > 0)
     hasPatternItems = (len(patternItems) > 0)
     hasExactlyOnePatternItem = (len(patternItems) == 1)
-    print "_textItemsMatchPatternItems:"
-    print "  ti=", textItems
-    print "  pi=", patternItems
+    _log.debug("_textItemsMatchPatternItems:")
+    _log.debug("  ti=%s", textItems)
+    _log.debug("  pi=%s", patternItems)
     if hasPatternItems:
         firstPatternItem = patternItems[0]
         if hasTextItems:
@@ -199,31 +199,29 @@ def _textItemsMatchPatternItems(textItems, patternItems):
                     # "**" at end of pattern matches everything.
                     result = True
                 else:
-                    patternItemIndexOfCurrentAntAllMagic = 0
-                    print "    patternItemIndexOfCurrentAntAllMagic=", patternItemIndexOfCurrentAntAllMagic
-                    patternItemIndexOfNextAntAllMagic = _findItemInList(_AntAllMagic, patternItems[patternItemIndexOfCurrentAntAllMagic + 1:])
+                    patternItemIndexOfNextAntAllMagic = _findItemInList(_AntAllMagic, patternItems[1:])
                     if patternItemIndexOfNextAntAllMagic != -1:
                         # Adjust for the fact that we started to search after the first pattern item.
                         patternItemIndexOfNextAntAllMagic += 1
                     assert patternItemIndexOfNextAntAllMagic != 1, "consecutive %r must be reduced to 1" % _AntAllMagic
-                    print "    patternItemIndexOfNextAntAllMagic=", patternItemIndexOfNextAntAllMagic
+                    _log.debug("    patternItemIndexOfNextAntAllMagic=%s", patternItemIndexOfNextAntAllMagic)
                     if patternItemIndexOfNextAntAllMagic == -1:
                         # Last "**" encountered; check that tail of text matches end of remaining pattern.
                         patternItemsAfterAllMagic = patternItems[1:]
-                        print "    patternItemsAfterAllMagic=", patternItemsAfterAllMagic
+                        _log.debug("    patternItemsAfterAllMagic=%s", patternItemsAfterAllMagic)
                         tailOfTextItems = textItems[-len(patternItemsAfterAllMagic):]
                         result = _textItemsAreAtEndOfPatternItems(tailOfTextItems, patternItemsAfterAllMagic)
                     else:
                         # "**" encountered with more "**" to come: check if and part of
                         # ``textItems`` matches the pattern between the two "**".
-                        patternItemsBetweenAllMagic = patternItems[patternItemIndexOfCurrentAntAllMagic + 1:patternItemIndexOfNextAntAllMagic]
-                        print "    patternItemsBetweenAllMagic=", patternItemsBetweenAllMagic
+                        patternItemsBetweenAllMagic = patternItems[1:patternItemIndexOfNextAntAllMagic]
+                        _log.debug("    patternItemsBetweenAllMagic=%s", patternItemsBetweenAllMagic)
                         indexOfTextItemsMatchingPatternItemsBetweenAll = _findTextItemsPartForPatternItems(textItems, patternItemsBetweenAllMagic)
                         if indexOfTextItemsMatchingPatternItemsBetweenAll >= 0:
                             remainingTextItems = textItems[indexOfTextItemsMatchingPatternItemsBetweenAll + len(patternItemsBetweenAllMagic):]
                             remainingPatternItems = patternItems[patternItemIndexOfNextAntAllMagic:]
-                            print "    remainingTextItems=", remainingTextItems
-                            print "    remainingPatternItems=", remainingPatternItems
+                            _log.debug("    remainingTextItems=%s", remainingTextItems)
+                            _log.debug("    remainingPatternItems=%s", remainingPatternItems)
                             result = _textItemsMatchPatternItems(remainingTextItems, remainingPatternItems)
                         else:
                             # We cannot even find the current sub pattern anywhere in the
