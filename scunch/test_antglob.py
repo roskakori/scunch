@@ -15,12 +15,21 @@ Tests for antglob.
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import doctest
+import errno
 import logging
+import os
+import shutil
+import tempfile
 import unittest
 
 import antglob
 
 _log = logging.getLogger("test")
+class DocTest(unittest.TestSuite):
+    def __init__(self):
+        super(DocTest, self).__init__()
+        self.addTest(doctest.DocTestSuite(antglob))
 
 class TestPrivateFunctions(unittest.TestCase):
     def testTextItemsAreInPatternItems(self):
@@ -124,11 +133,66 @@ class AntPatternTest(unittest.TestCase):
 
     def testAntPatternSet(self):
         patternSet = antglob.AntPatternSet()
-        patternSet.add(antglob.AntPattern("*.png"))
-        patternSet.add(antglob.AntPattern("*.jpg"))
+        patternSet.include(antglob.AntPattern("*.png"))
+        patternSet.include(antglob.AntPattern("*.jpg"))
         self.assertTrue(patternSet.matches("hugo.png"))
         self.assertTrue(patternSet.matches("hugo.jpg"))
         self.assertFalse(patternSet.matches("hugo.txt"))
+
+class AntPatternSetFindTest(unittest.TestCase):
+    def setUp(self):
+        self._testFolderPath = tempfile.mkdtemp(prefix="test_antpattern_")
+        self.ohsomeSourcePath = os.path.join("ohsome", "source")
+        self.ohsomeSourceUiPath = os.path.join(self.ohsomeSourcePath, "ui")
+        self.ohsomeManualPath = os.path.join("ohsome", "manual")
+        self.makeFolder(os.path.join(self._testFolderPath, self.ohsomeSourcePath))
+        self.makeFolder(os.path.join(self._testFolderPath, self.ohsomeSourceUiPath))
+        self.makeFolder(os.path.join(self._testFolderPath, self.ohsomeManualPath))
+        self.writeTestFile(os.path.join(self.ohsomeSourcePath, "ohsome.py"))
+        self.writeTestFile(os.path.join(self.ohsomeSourcePath, "tools.py"))
+        self.writeTestFile(os.path.join(self.ohsomeSourceUiPath, "login.py"))
+        self.writeTestFile(os.path.join(self.ohsomeSourceUiPath, "mainwindow.py"))
+        self.writeTestFile(os.path.join(self.ohsomeSourceUiPath, "splash.png"))
+        self.writeTestFile(os.path.join(self.ohsomeManualPath, "tutorial.rst"))
+        self.writeTestFile(os.path.join(self.ohsomeManualPath, "userguide.rst"))
+        self.writeTestFile(os.path.join(self.ohsomeManualPath, "screenshot.png"))
+        self.writeTestFile(os.path.join(self.ohsomeManualPath, "logo.png"))
+    
+    def tearDown(self):
+        shutil.rmtree(self._testFolderPath)
+
+    def makeFolder(self, folderPathToMake):
+        """
+        Like `os.makedirs` but does nothing if the folder already exists.
+        """
+        try:
+            os.makedirs(folderPathToMake)
+        except OSError, error:
+            if error.errno !=  errno.EEXIST:
+                raise
+    
+    def writeTestFile(self, relativePathOfFileToWrite, lines=[]):
+        assert relativePathOfFileToWrite
+        assert lines is not None
+        testFilePath = os.path.join(self._testFolderPath, relativePathOfFileToWrite)
+        testFile = open(testFilePath, "wb")
+        try:
+            for line in lines:
+                testFile.write(line)
+                testFile.write(os.linesep)
+        finally:
+            testFile.close()
+        
+    def testFindPatternSet(self):
+        pythonSet = antglob.AntPatternSet()
+        pythonSet.include("**/*.py, **/*.rst")
+        pythonSet.exclude("**/*.pyc, **/*.pyo")
+        pathCount = 0
+        for path in pythonSet.find(self._testFolderPath):
+            pathCount += 1
+            suffix = os.path.splitext(path)[1]
+            self.assertTrue(suffix in (".py", ".rst"))
+        self.assertTrue(pathCount)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)

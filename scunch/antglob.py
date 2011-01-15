@@ -1,5 +1,21 @@
 """
 Ant-like pattern matching and globbing with support for "**".
+
+Ant-like includePatterns in their original form are described at
+<http://ant.apache.org/manual/dirtasks.html>.
+Patterns supported by this module also allow shell includePatterns using "[" and "]"
+as supported by the `fnmatch` and `glob` module.
+
+To sum it up:
+
+* "/" or "\" separate folder names. Internally, "\" is unified to "/".
+* "*" matches none or any amount of characters.
+* "?" matches any single character.
+* "[seq]" matches any character in sequence ``seq``.
+* "[!seq]" matches any character not in sequence ``seq``.
+* "**" matches none or any folder.
+* If a pattern ends with "/" or "\", a "**" is automatically appended at the
+  end of the pattern.
 """
 # Copyright (C) 2011 Thomas Aglassinger
 #
@@ -22,18 +38,61 @@ import re
 
 _log = logging.getLogger("antglob")
 
-def antPatternList(patternText):
-    assert patternText is not None
-    if u"," in patternText:
-        result = [item.strip() for item in patternText.split(",")]
-    else:
-        result = patternText.split()
-    return result
-
 _AntAllMagic = "**"
 _AntMagicRegEx = re.compile('[*?[]')
+# TODO: Use _NotFound = -1; or use ``None`` to indicate a "not found".
+
+# Patterns to exclude by default similar to ant 1.8.2.
+DefaultExcludes = (
+     "**/*~",
+     "**/#*#",
+     "**/.#*",
+     "**/%*%",
+     "**/._*",
+     "**/CVS",
+     "**/CVS/**",
+     "**/.cvsignore",
+     "**/SCCS",
+     "**/SCCS/**",
+     "**/vssver.scc",
+     "**/.svn",
+     "**/.svn/**",
+     "**/.DS_Store",
+     "**/.git",
+     "**/.git/**",
+     "**/.gitattributes",
+     "**/.gitignore",
+     "**/.gitmodules",
+     "**/.hg",
+     "**/.hg/**",
+     "**/.hgignore",
+     "**/.hgsub",
+     "**/.hgsubstate",
+     "**/.hgtags",
+     "**/.bzr",
+     "**/.bzr/**",
+     "**/.bzrignore"
+)
+
+def createAntPatterns(patternListText):
+    """
+    List of `AntPattern`s extracted from ``patternListText``, which should contain
+    patterns separated by a comma (,) or blank ( ).
+    """
+    assert patternListText is not None
+    result = []
+    if u"," in patternListText:
+        patternText = [item.strip() for item in patternListText.split(u",")]
+    else:
+        patternText = patternListText.split()
+    for patternTextItem in patternText:
+        result.append(AntPattern(patternTextItem))
+    return result
 
 class AntPatternError(Exception):
+    """
+    Error raised if an ant-like pattern is broken or cannot be processed.
+    """
     pass
 
 class AntPatternItem(object):
@@ -57,11 +116,9 @@ class AntPatternItem(object):
     def matches(self, text):
         if self.kind == AntPatternItem.All:
             result = True
-        elif self.kind == AntPatternItem.Many:
-            result = fnmatch.fnmatch(text, self.pattern)
         else:
-            assert self.kind == AntPatternItem.One
-            result = (text == self.pattern)
+            assert self.kind in (AntPatternItem.Many, AntPatternItem.One) 
+            result = fnmatch.fnmatch(text, self.pattern)
         return result
 
     def __cmp__(self, other):
@@ -240,7 +297,16 @@ def _textItemsMatchPatternItems(textItems, patternItems):
         result = not hasTextItems
     return result
 
-def _splitTextItems(text):
+def _splitTextItems(text, fixAllMagicAtEnd=False):
+    """
+    List of string containing ``text`` split using a system independent path separator.
+    
+    Perform the following transformations on the text:
+
+    * Unify "/" and "\\" to "/" to allow system independent path matching.
+    * If ``fixAllMagicAtEnd`` is ``True`` and ``text`` ends in "/", append "**" to indicate that
+      everything in the specified folder should match.
+    """
     result = []
     pathSeperator = os.sep
     if pathSeperator == "/":
@@ -261,9 +327,11 @@ class AntPattern(object):
     Ant-like pattern representing a single path.
     """
     def __init__(self, patternText):
-        self.patternItems = [AntPatternItem(itemText) for itemText in _splitTextItems(patternText)]
+        assert patternText is not None
+        self.patternItems = [AntPatternItem(itemText) for itemText in _splitTextItems(patternText, True)]
 
     def matches(self, text):
+        assert text is not None
         textItems = _splitTextItems(text)
         return self.matchesItems(textItems)
     
@@ -272,7 +340,8 @@ class AntPattern(object):
         return _textItemsMatchPatternItems(textItems, self.patternItems)
 
     def __unicode__(self):
-        return u"<AntPattern: %s>" % (self.patternItems)
+        result = u"<AntPattern: %s>" % (self.patternItems)
+        return result
         
     def __str__(self):
         return unicode(self).encode('utf-8')
@@ -281,33 +350,131 @@ class AntPattern(object):
         return self.__str__()
 
 class AntPatternSet(object):
-    def __init__(self, patterns=()):
-        self.patterns = []
-        for pattern in patterns:
-            self.add(pattern)
+    """
+    A set of include and exclude patterns to decide whether a text should match.
     
-    def add(self, pattern):
-        assert pattern is not None
-        self.patterns.append(pattern)
+    If no include pattern is specified, everything matches.
+    
+    As example, first create a pattern and specifiy which files to include and exclude. In this
+    case, we want to include Python source code and documentation but exclude Python byte code:
+    
+    >>> pythonSet = AntPatternSet()
+    >>> pythonSet.include("**/*.py, **/*.rst")
+    >>> pythonSet.exclude("**/*.pyc, **/*.pyo")
+    
+    We can use this pattern set to check whether certain file paths would be part of it:
+    >>> pythonSet.matches("some/module.py")
+    True
+    >>> pythonSet.matches("logo.gif")
+    False
+    
+    The most useful method however is `AntPatternSet.find()`, which scans a folder for files and
+    returns the files that match the pattern.
+    """
+    def __init__(self, useDefaultExcludes=True):
+        """
+        Create a new pattern set, which would include everything and exclude nothing apart from
+        `DefaultExcludes`. To even consider files and folders in `DefaultExcludes`, specify
+        `` useDefaultExcludes=False``.
+        """
+        self.includePatterns = []
+        self.excludePatterns = []
+        if useDefaultExcludes:
+            for patternText in DefaultExcludes:
+                self.exclude(patternText)
+    
+    def _addPatternDefinition(self, targetPatterns, patternDefinition):
+        assert targetPatterns is not None
+        assert patternDefinition is not None
+        if isinstance(patternDefinition, basestring) : 
+            for pattern in createAntPatterns(patternDefinition):
+                targetPatterns.append(pattern)
+        else:
+            targetPatterns.append(patternDefinition)
+
+    def include(self, patternDefinition):
+        """
+        Include ``patternDefinition``, which can be an ``AntPattern`` or a
+        string possibly containing multiple patterns separated by a comma
+        or space.
+        """
+        assert patternDefinition is not None
+        self._addPatternDefinition(self.includePatterns, patternDefinition)
+
+    def exclude(self, patternDefinition):
+        """
+        Exclude ``patternDefinition``, which can be an ``AntPattern`` or a
+        string possibly containing multiple patterns separated by a comma
+        or space.
+        """
+        assert patternDefinition is not None
+        self._addPatternDefinition(self.excludePatterns, patternDefinition)
 
     def matches(self, text):
         textItems = _splitTextItems(text)
         return self.matchesItems(textItems)
     
-    def matchesItems(self, textItems):
+    def _matchesAnyPatternIn(self, textItems, patterns):
+        """
+        ``True`` if ``textItems`` match any of the patterns in ``patterns``.
+        """
         assert textItems is not None
+        assert patterns is not None
+        assert patterns, "empty patterns are special and must be handled before calling this"
         result = False
         patternIndex = 0
-        while not result and (patternIndex < len(self.patterns)):
-            pattern = self.patterns[patternIndex]
+        while not result and (patternIndex < len(patterns)):
+            pattern = patterns[patternIndex]
             if pattern.matchesItems(textItems):
                 result = True
             else:
                 patternIndex += 1
         return result
+        
+    def matchesItems(self, textItems):
+        assert textItems is not None
+        if self.includePatterns:
+            result = self._matchesAnyPatternIn(textItems, self.includePatterns)
+        else:
+            result = True
+        if result and self.excludePatterns and self._matchesAnyPatternIn(textItems, self.excludePatterns):
+            result = False
+        return result
+
+    def _findInFolder(self, folderTextItems, folderPath):
+        for itemName in os.listdir(folderPath):
+            path = os.path.join(folderPath, itemName)
+            pathTextItems = list(folderTextItems)
+            pathTextItems.append(itemName)
+            if self.excludePatterns:
+                isExcluded = self._matchesAnyPatternIn(pathTextItems, self.excludePatterns)
+            else:
+                isExcluded = False
+            if not isExcluded:
+                if os.path.isdir(path):
+                    # TODO: Scan into folder only if include patterns suggest there is a chance to
+                    # actually find anything there.
+                    for path in self._findInFolder(pathTextItems, path):
+                        yield path
+                elif self.includePatterns:
+                    if self._matchesAnyPatternIn(pathTextItems, self.includePatterns):
+                        yield path
+                else:
+                    # Without include pattern, yield everything
+                    yield path
+
+    def ifind(self, folderPath=os.getcwdu()):
+        for path in self._findInFolder([], folderPath):
+            yield path
+
+    def find(self, folderPath=os.getcwdu()):
+        result = []
+        for path in self.ifind(folderPath):
+            result.append(path)
+        return result
 
     def __unicode__(self):
-        return u"<AntPatternSet: %s>" % (self.patterns)
+        return u"<AntPatternSet: include=%s, exclude=%s>" % (self.includePatterns, self.excludePatterns)
         
     def __str__(self):
         return unicode(self).encode('utf-8')
@@ -315,11 +482,8 @@ class AntPatternSet(object):
     def __repr__(self):
         return self.__str__()
 
-class AntGlob(object):
-    """
-    Glob using ant patterns as describe in
-    <http://ant.apache.org/manual/dirtasks.html>.
-    """
-    def __init__(self, pattern):
-        assert pattern is not None
-        
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    _log.info("running doctest")
+    import doctest
+    doctest.testmod()
