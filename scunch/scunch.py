@@ -926,7 +926,7 @@ def resolvedPathElements(elements=[]):
         result = os.path.join(result, element)
     return result
 
-def _listFolderItems(baseFolderPath, baseFolderItem, isAcceptable=None):
+def _listFolderItems(baseFolderPath, baseFolderItem, patternSetToMatch):
     """
     List of folder items starting with ``baseFolderPath`` joined according to the path elements
     of ``baseFolderItem``.
@@ -936,15 +936,15 @@ def _listFolderItems(baseFolderPath, baseFolderItem, isAcceptable=None):
     _log.debug("  scan: %s", folderPath)
     for itemName in os.listdir(folderPath):
         item = FolderItem(baseFolderItem.elements, itemName, baseFolderPath)
-        if (isAcceptable is None) or isAcceptable(item):
+        if not patternSetToMatch or patternSetToMatch.matchesItems(item.elements):
             yield item
             if item.kind == FolderItem.Folder:
-                for nestedItem in _listFolderItems(baseFolderPath, item, isAcceptable):
+                for nestedItem in _listFolderItems(baseFolderPath, item, patternSetToMatch):
                     yield nestedItem
         else:
             _log.debug("  reject: %s", item)
 
-def listFolderItems(folderPathToList, isAcceptable=None):
+def listFolderItems(folderPathToList, patternSetToMatch=None):
     """
     List of folder items starting with ``folderPathToList``.
     """
@@ -953,9 +953,10 @@ def listFolderItems(folderPathToList, isAcceptable=None):
         # Note: We could easily "yield" a file too. The current design just does not require this
         # because a folder to punch cannot be meaningfully processed in case it is a file.
         raise ScmError("path to list must be a folder: %r" % folderPathToList)
-    if isAcceptable and not isAcceptable(item):
-        raise ScmError("folder to list must be acceptable: %r" % folderPathToList)
-    for nestedItem in _listFolderItems(folderPathToList, item, isAcceptable):
+    # TODO: Remove dead code below.
+    # if patternSetToMatch and not patternSetToMatch.matchesItems(item.elements):
+    #     raise ScmError("folder to list must be acceptable: %r" % folderPathToList)
+    for nestedItem in _listFolderItems(folderPathToList, item, patternSetToMatch):
         yield nestedItem
 
 class TextOptions(object):
@@ -1029,7 +1030,12 @@ class TextOptions(object):
 
 class ScmPuncher(object):
     """
-    Puncher to transform a work copy according to the current state of an external folder.
+    Puncher to update a work copy according from a folder performing the following changes on the
+    work copy:
+    
+    * Add files that do not exist in the work copy but the folder.
+    * Remove files that exist in the work copy but not the folder.
+    * Copy other files that exist in both from the folder to the work copy.
     """
     MoveName = "name"
     MoveNone = "none"
@@ -1049,6 +1055,8 @@ class ScmPuncher(object):
         self._transferedItems = None
         self._movedItems = None
         self._removedItems = None
+        self._filesToPunchPatternSet = None
+        self._workFilesToPreservePatternSet = None
 
     def _isInLastRemovedFolder(self, itemToCheck):
         result = False
@@ -1128,21 +1136,36 @@ class ScmPuncher(object):
         else:
             shutil.copy2(externalPathOfItemToTransferFrom, workPathOfItemToTransferTo)
 
-    def _setExternalAndWorkItems(self, externalFolderPath, relativeWorkFolderPath=""):
+    def _setExternalAndWorkItems(self, externalFolderPath, relativeWorkFolderPath, includePatternText, excludePatternText, workOnlyPatternText):
         assert externalFolderPath is not None
         assert relativeWorkFolderPath is not None
 
         self._externalFolderPath = externalFolderPath
+        # Compute file name patterns.
+        filesToPunchPatternSet = antglob.AntPatternSet()
+        if includePatternText:
+            filesToPunchPatternSet.include(includePatternText)
+        if excludePatternText:
+            filesToPunchPatternSet.exclude(excludePatternText)
 
         # Collect external items.
-        self.externalItems = listFolderItems(externalFolderPath)
+        self.externalItems = listFolderItems(externalFolderPath, filesToPunchPatternSet)
         self.externalItems = _sortedFolderItems(self.externalItems)
         _log.info('found %d external items in "%s"', len(self.externalItems), self._externalFolderPath)
+
+        # Check that external items do contain any work only items.
+        if workOnlyPatternText:
+            workFilesToPreservePatternSet = antglob.AntPatternSet(False)
+            workFilesToPreservePatternSet.include(workOnlyPatternText)
         for item in self.externalItems:
             _log.debug('  %s', item)
+            if workOnlyPatternText and workFilesToPreservePatternSet.matchesItems(item.elements):
+                raise ScmError('entry in folder to punch must exist only in work copy: "%s"' % item.relativePath)
 
         # Collect items in work copy.
-        self.workItems = self.scmWork.listFolderItems(relativeWorkFolderPath)
+        if workOnlyPatternText:
+            filesToPunchPatternSet.exclude(workOnlyPatternText)
+        self.workItems = self.scmWork.listFolderItems(relativeWorkFolderPath, filesToPunchPatternSet)
         self.workItems = _sortedFolderItems(self.workItems)
         _log.info('found %d work items in "%s"', len(self.workItems), self.scmWork.absolutePath("work path", relativeWorkFolderPath))
         for item in self.workItems:
@@ -1268,11 +1291,11 @@ class ScmPuncher(object):
                 self.scmWork.move(sourcePath, targetPath, force=True)
                 self._transferItemFromExternalToWork(targetItemToMove, textOptions)
 
-    def punch(self, externalFolderPath, relativeWorkFolderPath="", textOptions=None, move=MoveName):
+    def punch(self, externalFolderPath, relativeWorkFolderPath="", textOptions=None, move=MoveName, includePatternText=None, excludePatternText=None, workOnlyPatternText=None):
         assert externalFolderPath is not None
         assert relativeWorkFolderPath is not None
         try:
-            self._setExternalAndWorkItems(externalFolderPath, relativeWorkFolderPath)
+            self._setExternalAndWorkItems(externalFolderPath, relativeWorkFolderPath, includePatternText, excludePatternText, workOnlyPatternText)
             self._setAddedModifiedRemovedItems()
             if move != ScmPuncher.MoveNone:
                 self._setCopiedAndMovedItems()
@@ -1311,6 +1334,8 @@ class ScmWork(object):
             self.update()
         else:
             assert checkOutAction == ScmWork.CheckOutActionSkip, 'checkOutAction=%r' % checkOutAction
+        self.specialPathPatternSet = antglob.AntPatternSet(False)
+        self.specialPathPatternSet.include("**/.svn, **/_svn")
 
     def clear(self):
         """
@@ -1420,7 +1445,7 @@ class ScmWork(object):
         
     def isSpecialPath(self, path):
         name = os.path.basename(path)
-        return (name.lower() in [".svn", "_svn"])
+        return self.specialPathPatternSet.matches(name)
 
     def listStorage(self, relativePathsToList, recursive=True):
         absolutePathsToList = self.absolutePaths("paths to list", relativePathsToList)
@@ -1452,13 +1477,17 @@ class ScmWork(object):
                 else:
                     yield path
 
-    def listFolderItems(self, relativeFolderToList=""):
+    def listFolderItems(self, relativeFolderToList="", patternSetToMatch=None):
         """
         List of folder items starting with ``relativeFolderPathToList`` excluding special items
         used internally by the SCM (such as for example ".svn" for Subversion).
         """
         def isAcceptable(folderItem):
-            return not self.isSpecialPath(folderItem.name)
+            if patternSetToMatch:
+                result = patternSetToMatch.matchesItems(folderItem.elements)
+            else:
+                result = not self.isSpecialPath(folderItem.name)
+            return result
 
         if relativeFolderToList:
             raise NotImplementedError
@@ -1466,7 +1495,7 @@ class ScmWork(object):
         item = FolderItem(baseFolderPath=folderPathToList)
         if item.kind != FolderItem.Folder:
             raise ScmError("work copy path to list must be a folder: %r" % folderPathToList)
-        for nestedItem in _listFolderItems(folderPathToList, item, isAcceptable=isAcceptable):
+        for nestedItem in _listFolderItems(folderPathToList, item, patternSetToMatch):
             yield nestedItem
 
     def status(self, relativePathsToExamine, recursive=True):
@@ -1527,7 +1556,7 @@ def listRelativePaths(folderToListPath, elements=[]):
         else:
                 yield ('file', tuple(itemElements))
 
-def scunch(sourceFolderPath, scmWork, textOptions=None, move=ScmPuncher.MoveName):
+def scunch(sourceFolderPath, scmWork, textOptions=None, move=ScmPuncher.MoveName, includePatternText=None, excludePatternText=None, workOnlyPatternText=None):
     assert sourceFolderPath is not None
     puncher = ScmPuncher(scmWork)
     puncher.punch(sourceFolderPath, "", textOptions, move=move)
@@ -1562,7 +1591,7 @@ def _createTextOptions(commandLineOptions):
     return result
 
 _Usage = "%prog [options] FOLDER [WORK-FOLDER]"
-_Description = """Update svn working copy fom an external folder and copy, add and remove files and folders as necessary."""
+_Description = "Update svn work copy from folder applying add and remove."
 
 def parsedOptions(arguments):
     assert arguments is not None
@@ -1570,8 +1599,11 @@ def parsedOptions(arguments):
     parser = optparse.OptionParser(usage=_Usage, description=_Description, version="%prog " + __version__)
     punchGroup = optparse.OptionGroup(parser, u"Punching options")
     punchGroup.add_option("-c", "--commit", action="store_true", dest="isCommit", help=u"after punching the changes into the work copy, commit them")
+    punchGroup.add_option("-i", "--include", dest="includePattern", metavar="PATTERN", help=u'ant pattern for file to include (default: all files)')
     punchGroup.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help=u'text for commit message (default: "%default")')
     punchGroup.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help=u'criteria to detect moved files (default: "%default")')
+    punchGroup.add_option("-w", "--work-only", dest="workOnlyPattern", metavar="PATTERN", help=u'ant pattern for files that only reside in work copy but still should remain (default: none)')
+    punchGroup.add_option("-x", "--exclude", dest="excludePattern", metavar="PATTERN", help=u'ant pattern for file to exclude (default: exclude no files but the default excludes)')
     parser.add_option_group(punchGroup)
     textGroup = optparse.OptionGroup(parser, u"Text file conversion options")
     textGroup.add_option("-N", "--newline", dest="newLine", metavar="KIND", type="choice", choices=sorted(_NameToNewLineMap.keys()), help=u'separator at the end of line in --text files (default: "native")')
@@ -1630,7 +1662,7 @@ def main(arguments=None):
     try:
         scmWork = createScmWork(workFolderPath)
         textOptions = _createTextOptions(options)
-        scunch(sourceFolderPath, scmWork, textOptions, move=options.moveMode)
+        scunch(sourceFolderPath, scmWork, textOptions, move=options.moveMode, includePatternText=options.includePattern, excludePatternText=options.excludePattern, workOnlyPatternText=options.workOnlyPattern)
         if options.isCommit:
             scmWork.commit("", options.commitMessage)
         exitCode = 0

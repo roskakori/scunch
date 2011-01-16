@@ -25,6 +25,7 @@ from urlparse import urljoin
 
 import scunch
 import _tools
+import antglob
 
 _log = logging.getLogger("test")
 
@@ -428,6 +429,36 @@ class ScmPuncherTest(_SvnTest):
             }
         )
 
+    def testPunchWithPattern(self):
+        IncludePatternText="**/*.py **/*.html"
+        ExcludePatternText = "**/*i*.py"
+        WorkOnlyPatternText="build.xml"
+
+        self.setUpProject("punchWithPattern")
+        scmWork = self.scmWork
+
+        testPunchWithPatternPath = self.createTestFolder("testPunchWithPattern")
+        scmWork.exportTo(testPunchWithPatternPath, clear=True)
+        buildXmlWorkPath = scmWork.absolutePath("added build.xml in work", "build.xml")
+        helloPyWorkPath = scmWork.absolutePath("removed hello.py in work", "hello.py")
+        readMeTxtWorkPath = scmWork.absolutePath("removed ReadMe.txt in work", "ReadMe.txt")
+        whilePyExternalPath = os.path.join(testPunchWithPatternPath, "loops", "while.py")
+        os.remove(helloPyWorkPath)
+        os.remove(readMeTxtWorkPath)
+        os.remove(whilePyExternalPath)
+        self.writeTextFile(buildXmlWorkPath, "<!-- This would normally contain some ant target for scunch. -->")
+        patternPuncher = scunch.ScmPuncher(scmWork)
+        patternPuncher.punch(testPunchWithPatternPath, includePatternText=IncludePatternText, excludePatternText=ExcludePatternText, workOnlyPatternText=WorkOnlyPatternText)
+
+        self.assertTrue(os.path.exists(helloPyWorkPath))
+        self.assertTrue(os.path.exists(buildXmlWorkPath))
+        self.assertFalse(os.path.exists(readMeTxtWorkPath))
+
+        self.assertNonNormalStatus({scunch.ScmStatus.Unversioned: 1, scunch.ScmStatus.Missing: 1})
+        # TODO: Remove: self._testAfterPunch(testPunchWithPatternPath)
+
+
 if __name__ == '__main__':
-    scunch._setUpLogging(logging.INFO)
+    scunch._setUpLogging(logging.DEBUG)
+    logging.getLogger("antglob").setLevel(logging.INFO)
     unittest.main()
