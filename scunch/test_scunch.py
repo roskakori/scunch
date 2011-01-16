@@ -400,7 +400,7 @@ class ScmPuncherTest(_SvnTest):
         self.scmWork.exportTo(self.testPunchTextPath, clear=True)
         self._setTextFilePaths()
         self._testTextOptions(
-            scunch.TextOptions("txt"),
+            scunch.TextOptions("**/*.txt"),
             {
                 self.dosNewLineTxtPath: "1%s2%s" % (os.linesep, os.linesep),
                 self.unixNewLineTxtPath: "1%s2%s"  % (os.linesep, os.linesep),
@@ -417,7 +417,7 @@ class ScmPuncherTest(_SvnTest):
         self.scmWork.exportTo(self.testPunchTextPath, clear=True)
         self._setTextFilePaths()
         self._testTextOptions(
-            scunch.TextOptions("txt", scunch.TextOptions.Unix, 4, True),
+            scunch.TextOptions("**/*.txt", scunch.TextOptions.Unix, 4, True),
             {
                 self.dosNewLineTxtPath: "1\n2\n",
                 self.unixNewLineTxtPath: "1\n2\n",

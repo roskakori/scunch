@@ -469,9 +469,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Version history
 ===============
 
-**Version 0.5.0, xx-Jan-2001**
+**Version 0.5.0, 16-Jan-2001**
 
-* ...
+* Changed ``--text`` to use ant-like pattern instead of a suffix list. For
+  example now use ``--text="**/*.txt" instead of ``text=txt``.
 
 **Version 0.4.1, 09-Jan-2001**
 
@@ -547,6 +548,7 @@ import urlparse
 import xml.sax
 from xml.sax.handler import ContentHandler
 
+import antglob
 import _tools
 
 __version_info__ = (0, 5, 0)
@@ -971,7 +973,7 @@ class TextOptions(object):
 
     _ValidNewLines = set((Dos, Native, Unix))
 
-    def __init__(self, textSuffixes=None, newLine=Native, tabSize=PreserveTabs, stripTrailing=False):
+    def __init__(self, antPatternText=None, newLine=Native, tabSize=PreserveTabs, stripTrailing=False):
         assert newLine in TextOptions._ValidNewLines
         assert tabSize is not None
         assert tabSize >= TextOptions.PreserveTabs
@@ -982,27 +984,25 @@ class TextOptions(object):
         self.newLine = newLine
         assert self.newLine
         self.tabSize = tabSize
-        if textSuffixes:
-            # Split string with comma separated suffixes into set of lower case suffixes with
-            # leading and trailing blanks removed.
-            self.textSuffixes = set([item.strip().lower() for item in textSuffixes.split(",")])
+        if antPatternText:
+            self.textPatternSet = antglob.AntPatternSet()
+            self.textPatternSet.include(antPatternText)
         else:
-            self.textSuffixes = None
+            self.textPatternSet = None
 
-    def isText(self, filePath):
+    def isText(self, folderItemToCheck):
         """
-        ``True`` if ``filePath`` indicates a text file according to the suffixes specified in the constructor.
+        ``True`` if ``folderItemToCheck`` indicates a text file according to the suffixes specified in the constructor.
         """
-        # Note: We do not even accept an empty ``filePath`` because this must only be called for
+        # Note: We do not even accept an empty ``folderItemsToCheck`` because this must only be called for
         # file names always have at least 1 character, and not folders (which can be empty
         # when referring to the current working folder).
-        assert filePath
+        assert folderItemToCheck
 
-        result = False
-        if self.textSuffixes:
-            lowerFileNameSuffixWithoutDot = os.path.splitext(filePath)[1][1:].lower()
-            if lowerFileNameSuffixWithoutDot in self.textSuffixes:
-                result = True
+        if self.textPatternSet:
+            result = self.textPatternSet.matchesItems(folderItemToCheck.elements)
+        else:
+            result = False
         return result
     
     def convertedLine(self, line):
@@ -1018,7 +1018,7 @@ class TextOptions(object):
         return result
 
     def __unicode__(self):
-        return u"<TextOptions: newLine=%r, charactersToStrip=%r, tabSize=%d, texts=%s>" % (self.newLine, self._trailingCharactersToStrip, self.tabSize, self.textSuffixes)
+        return u"<TextOptions: newLine=%r, charactersToStrip=%r, tabSize=%d, texts=%s>" % (self.newLine, self._trailingCharactersToStrip, self.tabSize, self.textPatternSet)
         
     def __str__(self):
         return unicode(self).encode('utf-8')
@@ -1123,7 +1123,7 @@ class ScmPuncher(object):
         assert itemToTransfer is not None
         externalPathOfItemToTransferFrom = self._externalPathFor(itemToTransfer)
         workPathOfItemToTransferTo = self._workPathFor(itemToTransfer)
-        if textOptions and textOptions.isText(externalPathOfItemToTransferFrom):
+        if textOptions and textOptions.isText(itemToTransfer):
             self._copyTextFile(externalPathOfItemToTransferFrom, workPathOfItemToTransferTo, textOptions)
         else:
             shutil.copy2(externalPathOfItemToTransferFrom, workPathOfItemToTransferTo)
@@ -1554,7 +1554,7 @@ def _createTextOptions(commandLineOptions):
     assert commandLineOptions.newLine in _NameToNewLineMap.keys(), 'newLine=%r' % commandLineOptions.newLine 
 
     result = TextOptions(
-        commandLineOptions.textSuffixes,
+        commandLineOptions.textPatternSet,
         _NameToNewLineMap[commandLineOptions.newLine],
         commandLineOptions.tabSize,
         commandLineOptions.isStripTrailing
@@ -1576,7 +1576,7 @@ def parsedOptions(arguments):
     textGroup = optparse.OptionGroup(parser, u"Text file conversion options")
     textGroup.add_option("-N", "--newline", dest="newLine", metavar="KIND", type="choice", choices=sorted(_NameToNewLineMap.keys()), help=u'separator at the end of line in --text files (default: "native")')
     textGroup.add_option("-S", "--strip-trailing", action="store_true", dest="isStripTrailing", help=u"strip trailing white space from --text files")
-    textGroup.add_option("-t", "--text", dest="textSuffixes", metavar="SUFFIXES", help=u'comma separated list of file name suffixes to treat as text files (default: none)')
+    textGroup.add_option("-t", "--text", dest="textPatternSet", metavar="PATTERN", help=u'ant pattern for files to be considered text files (default: none)')
     textGroup.add_option("-T", "--tabsize", default=TextOptions.PreserveTabs, dest="tabSize", metavar="NUMBER", type=long, help=u'number of spaces to allign tabs with in --text files; %d=keep tab (default: %%default)' % TextOptions.PreserveTabs)
     parser.add_option_group(textGroup)
     consoleGroup = optparse.OptionGroup(parser, u"Console and logging options")
@@ -1589,7 +1589,7 @@ def parsedOptions(arguments):
     (options, others) = parser.parse_args(arguments[1:])
     if options.tabSize < TextOptions.PreserveTabs:
         parser.error("value for --tabsize is %d but must be at least %d" % (options.tabSize, TextOptions.PreserveTabs))
-    if options.textSuffixes is None:
+    if options.textPatternSet is None:
         if options.newLine:
             parser.error("option --text must be set to enable option --newline")
         if options.isStripTrailing:

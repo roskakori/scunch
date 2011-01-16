@@ -317,7 +317,7 @@ def _splitTextItems(text, fixAllMagicAtEnd=False):
         raise NotImplementedError("cannot split unknown path separator: %r" % pathSeperator)
     if remainingText.endswith(pathSeperator):
         remainingText += _AntAllMagic
-    while remainingText:
+    while remainingText and (remainingText != pathSeperator):
         remainingText, itemText = os.path.split(remainingText)
         result.insert(0, itemText)
     return result
