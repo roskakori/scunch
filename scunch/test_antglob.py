@@ -191,7 +191,7 @@ class AntPatternSetFindTest(unittest.TestCase):
         filePathCount = 0
         folderPathCount = 0
         _log.info("find pattern set: %s", pythonSet)
-        for path in pythonSet.find(self._testFolderPath):
+        for path in pythonSet.find(self._testFolderPath, True):
             _log.info("  found: %s", path)
             if antglob.isFolderPath(path):
                 folderPathCount += 1
@@ -201,6 +201,20 @@ class AntPatternSetFindTest(unittest.TestCase):
                 filePathCount += 1
         self.assertTrue(filePathCount)
         self.assertTrue(folderPathCount)
+
+    def testFindPatternSetWithoutFolders(self):
+        pythonSet = antglob.AntPatternSet()
+        pythonSet.include("**/*.py, **/*.rst")
+        pythonSet.exclude("**/*.pyc, **/*.pyo")
+        filePathCount = 0
+        _log.info("find pattern set: %s", pythonSet)
+        for path in pythonSet.find(self._testFolderPath):
+            _log.info("  found: %s", path)
+            self.assertFalse(antglob.isFolderPath(path), "path must noe be folder: %r" % path)
+            suffix = os.path.splitext(path)[1]
+            self.assertTrue(suffix in (".py", ".rst"))
+            filePathCount += 1
+        self.assertTrue(filePathCount)
 
     def testFindEntriesForPatternSet(self):
         pythonSet = antglob.AntPatternSet()

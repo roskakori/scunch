@@ -538,28 +538,32 @@ class AntPatternSet(object):
                     # Without include pattern, yield everything
                     yield pathToExamine
 
-    def ifind(self, folderToScanPath=os.getcwdu()):
+    def ifind(self, folderToScanPath=os.getcwdu(), addFolders=False):
         """
         Like `find()` but iterates over `folderToScanPath` instead of returning a list of paths.
         """
+        assert folderToScanPath is not None
         folderPathsYield = set([folderToScanPath])
         for path in self._findInFolder([], folderToScanPath):
-            # Yield all sub folders of `path` that have not been yield yet.
-            parentFolderPathsToYield = []
-            folderPath = os.path.dirname(path)
-            while folderPath not in folderPathsYield:
-                parentFolderPathsToYield.insert(0, folderPath + os.sep)
-                folderPathsYield.update([folderPath])
-            for folderPath in parentFolderPathsToYield:
-                yield folderPath
+            if addFolders:
+                # Yield all sub folders of `path` that have not been yield yet.
+                parentFolderPathsToYield = []
+                folderPath = os.path.dirname(path)
+                while folderPath not in folderPathsYield:
+                    parentFolderPathsToYield.insert(0, folderPath + os.sep)
+                    folderPathsYield.update([folderPath])
+                for folderPath in parentFolderPathsToYield:
+                    yield folderPath
+            # Yield the current file path.
             yield path
 
-    def find(self, folderToScanPath=os.getcwdu()):
+    def find(self, folderToScanPath=os.getcwdu(), addFolders=False):
         """
         List of paths of files relative to ``folderPath`` matching the pattern set.
         """
+        assert folderToScanPath is not None
         result = []
-        for path in self.ifind(folderToScanPath):
+        for path in self.ifind(folderToScanPath, addFolders):
             result.append(path)
         return result
 
@@ -582,7 +586,6 @@ class AntPatternSet(object):
             result.append(entry)
         return result
 
-        
     def __unicode__(self):
         return u"<AntPatternSet: include=%s, exclude=%s>" % (self.includePatterns, self.excludePatterns)
         
