@@ -229,8 +229,9 @@ class AntPatternSetFindTest(unittest.TestCase):
                 folderCount += 1
             else:
                 self.assertEqual(entry.kind, antglob.FileSystemEntry.File)
-                suffix = entry.parts[-1]
-                self.assertTrue(suffix in (".py", ".rst"))
+                lastPart = entry.parts[-1]
+                suffix = os.path.splitext(lastPart)[1]
+                self.assertTrue(suffix in (".py", ".rst"), "suffix=%r, lastPart=%r" % (suffix, lastPart))
                 fileCount += 1
         self.assertTrue(fileCount)
         self.assertTrue(folderCount)
@@ -257,5 +258,5 @@ class FolderEntryTest(unittest.TestCase):
         shutil.rmtree(testFolderPath)
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.WARNING)
     unittest.main()

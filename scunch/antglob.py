@@ -389,7 +389,7 @@ def _splitTextParts(text, fixAllMagicAtEnd=False):
         remainingText = text.replace("/", pathSeperator)
     else:
         raise NotImplementedError("cannot split unknown path separator: %r" % pathSeperator)
-    if remainingText.endswith(pathSeperator):
+    if fixAllMagicAtEnd and remainingText.endswith(pathSeperator):
         remainingText += _AntAllMagic
     while remainingText and (remainingText != pathSeperator):
         remainingText, part = os.path.split(remainingText)
@@ -515,9 +515,11 @@ class AntPatternSet(object):
             result = False
         return result
 
-    def _findInFolder(self, relativeFolderParts, relativeFolderPath):
-        # FIXME: Yield paths relative to base folder.
-        for nameToExamine in os.listdir(relativeFolderPath):
+    def _findInFolder(self, baseFolderPath, relativeFolderParts, relativeFolderPath):
+        assert baseFolderPath is not None
+        assert relativeFolderParts is not None
+        assert relativeFolderPath is not None
+        for nameToExamine in os.listdir(os.path.join(baseFolderPath, relativeFolderPath)):
             pathToExamine = os.path.join(relativeFolderPath, nameToExamine)
             pathToExamineParts = list(relativeFolderParts)
             pathToExamineParts.append(nameToExamine)
@@ -526,10 +528,11 @@ class AntPatternSet(object):
             else:
                 isExcluded = False
             if not isExcluded:
-                if os.path.isdir(pathToExamine):
+                fullPathToExamine = os.path.join(baseFolderPath, pathToExamine)
+                if os.path.isdir(fullPathToExamine):
                     # TODO: Scan into folder only if include patterns suggest there is a chance to
                     # actually find anything there.
-                    for pathToExamine in self._findInFolder(pathToExamineParts, pathToExamine):
+                    for pathToExamine in self._findInFolder(baseFolderPath, pathToExamineParts, pathToExamine):
                         yield pathToExamine
                 elif self.includePatterns:
                     if self._matchesAnyPatternIn(pathToExamineParts, self.includePatterns):
@@ -544,7 +547,7 @@ class AntPatternSet(object):
         """
         assert folderToScanPath is not None
         folderPathsYield = set([folderToScanPath])
-        for path in self._findInFolder([], folderToScanPath):
+        for path in self._findInFolder(folderToScanPath, [], ""):
             if addFolders:
                 # Yield all sub folders of `path` that have not been yield yet.
                 parentFolderPathsToYield = []
@@ -571,9 +574,8 @@ class AntPatternSet(object):
         """
         Like `findEntries()` but iterates over `folderToScanPath` instead of returning a list of paths.
         """
-        for path in self.find(folderToScanPath):
+        for path in self.find(folderToScanPath, True):
             parts = _splitTextParts(path)
-            print "  parts:", parts
             yield FileSystemEntry(folderToScanPath, parts)
 
     def findEntries(self, folderToScanPath=os.getcwdu()):
@@ -583,6 +585,7 @@ class AntPatternSet(object):
         """
         result = []
         for entry in self.ifindEntries(folderToScanPath):
+            _log.info("%s", entry)
             result.append(entry)
         return result
 
