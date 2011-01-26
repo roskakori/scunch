@@ -84,7 +84,7 @@ def createAntPatterns(patternListText):
     assert patternListText is not None
     result = []
     if u"," in patternListText:
-        patternText = [item.strip() for item in patternListText.split(u",")]
+        patternText = [part.strip() for part in patternListText.split(u",")]
     else:
         patternText = patternListText.split()
     for patternTextItem in patternText:
@@ -112,7 +112,7 @@ class AntPatternError(Exception):
     """
     pass
 
-class FolderEntry(object):
+class FileSystemEntry(object):
     """
     Entry in a file system folder relative to a base folder. This typically is a file or folder.
     """
@@ -131,21 +131,21 @@ class FolderEntry(object):
         self.relativePath = resolvedPathElements(self.parts)
         self.path = self.absolutePath(baseFolderPath)
         try:
-            itemInfo = os.stat(self.path)
+            entryInfo = os.stat(self.path)
         except OSError, error:
             if error.errno == errno.ENOENT:
                 raise AntPatternError("folder entry must remain during processing but was removed in the background: %r" % self.path)
             else:
                 raise
-        itemMode = itemInfo.st_mode
-        if stat.S_ISDIR(itemMode):
-            self.kind = FolderEntry.Folder
-        elif stat.S_ISREG(itemMode):
-            self.kind = FolderEntry.File
+        entryMode = entryInfo.st_mode
+        if stat.S_ISDIR(entryMode):
+            self.kind = FileSystemEntry.Folder
+        elif stat.S_ISREG(entryMode):
+            self.kind = FileSystemEntry.File
         else:
             raise AntPatternError("folder entry must be a folder or file: %r" % self.path)
-        self.size = itemInfo.st_size
-        self.timeModified = itemInfo.st_mtime
+        self.size = entryInfo.st_size
+        self.timeModified = entryInfo.st_mtime
 
     def absolutePath(self, baseFolderPath):
         assert baseFolderPath is not None
@@ -161,7 +161,7 @@ class FolderEntry(object):
         return self.parts == other.parts
 
     def __unicode__(self):
-        return u"<FolderEntry: kind=%s, parts=%s>" % (self.kind, self.parts)
+        return u"<FileSystemEntry: kind=%s, parts=%s>" % (self.kind, self.parts)
         
     def __str__(self):
         return unicode(self).encode('utf-8')
@@ -231,26 +231,26 @@ def _findListInList(needle, haystack):
         result = 0 
     return result
 
-def _findTextItemsPartForPatternItems(textItems, patternItems):
+def _indexInTextItemsWherePatternPartsMatch(textParts, patternParts):
     """
-    First index in ``textItems`` where a part of ``textItems`` with the same number of items as
-    ``patternItems`` matches ``patternItems``. 
+    First index in ``textParts`` where a part of ``textParts`` with the same number of parts as
+    ``patternParts`` matches ``patternParts``. 
     """
-    assert textItems is not None
-    assert patternItems is not None
-    for patternItem in patternItems:
+    assert textParts is not None
+    assert patternParts is not None
+    for patternItem in patternParts:
         assert patternItem.kind != AntPatternItem.All
-    # This functions only is useful for ``patternItems`` between "** and another "**".
-    assert patternItems
+    # This functions only is useful for ``patternParts`` between "** and another "**".
+    assert patternParts
 
     result = -1
-    textItemsCount = len(textItems)
-    patternItemsCount = len(patternItems)
+    textItemsCount = len(textParts)
+    patternItemsCount = len(patternParts)
     indexToCheck = 0
     while (result == -1) and (indexToCheck + patternItemsCount <= textItemsCount):
-        textItemsPartToCompareWithPatternItems = textItems[indexToCheck:indexToCheck + patternItemsCount]
+        textItemsPartToCompareWithPatternItems = textParts[indexToCheck:indexToCheck + patternItemsCount]
         # TODO: Remove: print indexToCheck + patternItemsCount, textItemsCount, textItemsPartToCompareWithPatternItems
-        if _textItemsMatchPatternItems(textItemsPartToCompareWithPatternItems, patternItems):
+        if _textItemsMatchPatternItems(textItemsPartToCompareWithPatternItems, patternParts):
             result = indexToCheck
         else:
             indexToCheck += 1
@@ -335,7 +335,7 @@ def _textItemsMatchPatternItems(textItems, patternItems):
                         # ``textItems`` matches the pattern between the two "**".
                         patternItemsBetweenAllMagic = patternItems[1:patternItemIndexOfNextAntAllMagic]
                         _log.debug("    patternItemsBetweenAllMagic=%s", patternItemsBetweenAllMagic)
-                        indexOfTextItemsMatchingPatternItemsBetweenAll = _findTextItemsPartForPatternItems(textItems, patternItemsBetweenAllMagic)
+                        indexOfTextItemsMatchingPatternItemsBetweenAll = _indexInTextItemsWherePatternPartsMatch(textItems, patternItemsBetweenAllMagic)
                         if indexOfTextItemsMatchingPatternItemsBetweenAll >= 0:
                             remainingTextItems = textItems[indexOfTextItemsMatchingPatternItemsBetweenAll + len(patternItemsBetweenAllMagic):]
                             remainingPatternItems = patternItems[patternItemIndexOfNextAntAllMagic:]
@@ -356,7 +356,7 @@ def _textItemsMatchPatternItems(textItems, patternItems):
         else:
             # We have a pattern but no text.
             if len(patternItems) == 1:
-                # Text matches if pattern is a single empty item or a single "*".
+                # Text matches if pattern is a single empty part or a single "*".
                 if firstPatternItem.kind == AntPatternItem.One:
                     result = not firstPatternItem.pattern
                 elif firstPatternItem.kind == AntPatternItem.Many:
@@ -367,11 +367,11 @@ def _textItemsMatchPatternItems(textItems, patternItems):
             else:
                 result = False
     else:
-        # Text matches pattern if both do not contain even a single item.
+        # Text matches pattern if both do not contain even a single part.
         result = not hasTextItems
     return result
 
-def _splitTextItems(text, fixAllMagicAtEnd=False):
+def _splitTextParts(text, fixAllMagicAtEnd=False):
     """
     List of string containing ``text`` split using a system independent path separator.
     
@@ -392,8 +392,8 @@ def _splitTextItems(text, fixAllMagicAtEnd=False):
     if remainingText.endswith(pathSeperator):
         remainingText += _AntAllMagic
     while remainingText and (remainingText != pathSeperator):
-        remainingText, itemText = os.path.split(remainingText)
-        result.insert(0, itemText)
+        remainingText, part = os.path.split(remainingText)
+        result.insert(0, part)
     return result
 
 class AntPattern(object):
@@ -402,14 +402,14 @@ class AntPattern(object):
     """
     def __init__(self, patternText):
         assert patternText is not None
-        self.patternItems = [AntPatternItem(itemText) for itemText in _splitTextItems(patternText, True)]
+        self.patternItems = [AntPatternItem(itemText) for itemText in _splitTextParts(patternText, True)]
 
     def matches(self, text):
         assert text is not None
-        textItems = _splitTextItems(text)
-        return self.matchesItems(textItems)
+        textItems = _splitTextParts(text)
+        return self.matchesParts(textItems)
     
-    def matchesItems(self, textItems):
+    def matchesParts(self, textItems):
         assert textItems is not None
         return _textItemsMatchPatternItems(textItems, self.patternItems)
 
@@ -485,8 +485,8 @@ class AntPatternSet(object):
         self._addPatternDefinition(self.excludePatterns, patternDefinition)
 
     def matches(self, text):
-        textItems = _splitTextItems(text)
-        return self.matchesItems(textItems)
+        textItems = _splitTextParts(text)
+        return self.matchesParts(textItems)
     
     def _matchesAnyPatternIn(self, textItems, patterns):
         """
@@ -499,44 +499,44 @@ class AntPatternSet(object):
         patternIndex = 0
         while not result and (patternIndex < len(patterns)):
             pattern = patterns[patternIndex]
-            if pattern.matchesItems(textItems):
+            if pattern.matchesParts(textItems):
                 result = True
             else:
                 patternIndex += 1
         return result
         
-    def matchesItems(self, textItems):
-        assert textItems is not None
+    def matchesParts(self, partsToMatch):
+        assert partsToMatch is not None
         if self.includePatterns:
-            result = self._matchesAnyPatternIn(textItems, self.includePatterns)
+            result = self._matchesAnyPatternIn(partsToMatch, self.includePatterns)
         else:
             result = True
-        if result and self.excludePatterns and self._matchesAnyPatternIn(textItems, self.excludePatterns):
+        if result and self.excludePatterns and self._matchesAnyPatternIn(partsToMatch, self.excludePatterns):
             result = False
         return result
 
-    def _findInFolder(self, folderTextItems, folderPath):
+    def _findInFolder(self, relativeFolderParts, relativeFolderPath):
         # FIXME: Yield paths relative to base folder.
-        for itemName in os.listdir(folderPath):
-            path = os.path.join(folderPath, itemName)
-            pathTextItems = list(folderTextItems)
-            pathTextItems.append(itemName)
+        for nameToExamine in os.listdir(relativeFolderPath):
+            pathToExamine = os.path.join(relativeFolderPath, nameToExamine)
+            pathToExamineParts = list(relativeFolderParts)
+            pathToExamineParts.append(nameToExamine)
             if self.excludePatterns:
-                isExcluded = self._matchesAnyPatternIn(pathTextItems, self.excludePatterns)
+                isExcluded = self._matchesAnyPatternIn(pathToExamineParts, self.excludePatterns)
             else:
                 isExcluded = False
             if not isExcluded:
-                if os.path.isdir(path):
+                if os.path.isdir(pathToExamine):
                     # TODO: Scan into folder only if include patterns suggest there is a chance to
                     # actually find anything there.
-                    for path in self._findInFolder(pathTextItems, path):
-                        yield path
+                    for pathToExamine in self._findInFolder(pathToExamineParts, pathToExamine):
+                        yield pathToExamine
                 elif self.includePatterns:
-                    if self._matchesAnyPatternIn(pathTextItems, self.includePatterns):
-                        yield path
+                    if self._matchesAnyPatternIn(pathToExamineParts, self.includePatterns):
+                        yield pathToExamine
                 else:
                     # Without include pattern, yield everything
-                    yield path
+                    yield pathToExamine
 
     def ifind(self, folderToScanPath=os.getcwdu()):
         """
@@ -568,13 +568,13 @@ class AntPatternSet(object):
         Like `findEntries()` but iterates over `folderToScanPath` instead of returning a list of paths.
         """
         for path in self.find(folderToScanPath):
-            parts = _splitTextItems(path)
+            parts = _splitTextParts(path)
             print "  parts:", parts
-            yield FolderEntry(folderToScanPath, parts)
+            yield FileSystemEntry(folderToScanPath, parts)
 
     def findEntries(self, folderToScanPath=os.getcwdu()):
         """
-        List containing a `FolderEntry` for each file matching the pattern set or any folder
+        List containing a `FileSystemEntry` for each file matching the pattern set or any folder
         containing at least one such file.
         """
         result = []

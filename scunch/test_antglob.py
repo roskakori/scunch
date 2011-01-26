@@ -36,29 +36,29 @@ class TestPrivateFunctions(unittest.TestCase):
     def testTextItemsAreInPatternItems(self):
         pattern = antglob.AntPattern("a/b/*_tmp/*.txt")
         patternItems = pattern.patternItems
-        self.assertTrue(antglob._textItemsAreInPatternItems(antglob._splitTextItems("a"), patternItems))
-        self.assertFalse(antglob._textItemsAreInPatternItems(antglob._splitTextItems("!"), patternItems))
-        self.assertTrue(antglob._textItemsAreInPatternItems(antglob._splitTextItems("a/b"), patternItems))
-        self.assertTrue(antglob._textItemsAreInPatternItems(antglob._splitTextItems("b"), patternItems))
-        self.assertTrue(antglob._textItemsAreInPatternItems(antglob._splitTextItems("b/hugo_tmp"), patternItems))
-        self.assertTrue(antglob._textItemsAreInPatternItems(antglob._splitTextItems("hugo.txt"), patternItems))
+        self.assertTrue(antglob._textItemsAreInPatternItems(antglob._splitTextParts("a"), patternItems))
+        self.assertFalse(antglob._textItemsAreInPatternItems(antglob._splitTextParts("!"), patternItems))
+        self.assertTrue(antglob._textItemsAreInPatternItems(antglob._splitTextParts("a/b"), patternItems))
+        self.assertTrue(antglob._textItemsAreInPatternItems(antglob._splitTextParts("b"), patternItems))
+        self.assertTrue(antglob._textItemsAreInPatternItems(antglob._splitTextParts("b/hugo_tmp"), patternItems))
+        self.assertTrue(antglob._textItemsAreInPatternItems(antglob._splitTextParts("hugo.txt"), patternItems))
 
     def testTextItemsAreAtEndOfPatternItems(self):
         pattern = antglob.AntPattern("a/b/*_tmp/*.txt")
         patternItems = pattern.patternItems
-        self.assertTrue(antglob._textItemsAreAtEndOfPatternItems(antglob._splitTextItems("hugo.txt"), patternItems))
-        self.assertFalse(antglob._textItemsAreAtEndOfPatternItems(antglob._splitTextItems("a"), patternItems))
-        self.assertFalse(antglob._textItemsAreAtEndOfPatternItems(antglob._splitTextItems("txt"), patternItems))
+        self.assertTrue(antglob._textItemsAreAtEndOfPatternItems(antglob._splitTextParts("hugo.txt"), patternItems))
+        self.assertFalse(antglob._textItemsAreAtEndOfPatternItems(antglob._splitTextParts("a"), patternItems))
+        self.assertFalse(antglob._textItemsAreAtEndOfPatternItems(antglob._splitTextParts("txt"), patternItems))
 
     def testFindTextItemsPartForPatternItems(self):
         pattern = antglob.AntPattern("a?c/d*")
         patternItems = pattern.patternItems
-        self.assertEqual(antglob._findTextItemsPartForPatternItems(antglob._splitTextItems("abc/d"), patternItems), 0)
-        self.assertEqual(antglob._findTextItemsPartForPatternItems(antglob._splitTextItems("0/abc/d"), patternItems), 1)
-        self.assertEqual(antglob._findTextItemsPartForPatternItems(antglob._splitTextItems("abc/d/e"), patternItems), 0)
-        self.assertEqual(antglob._findTextItemsPartForPatternItems(antglob._splitTextItems("abc"), patternItems), -1)
-        self.assertEqual(antglob._findTextItemsPartForPatternItems(antglob._splitTextItems("cannot/find/me"), patternItems), -1)
-        self.assertEqual(antglob._findTextItemsPartForPatternItems(antglob._splitTextItems(""), patternItems), -1)
+        self.assertEqual(antglob._indexInTextItemsWherePatternPartsMatch(antglob._splitTextParts("abc/d"), patternItems), 0)
+        self.assertEqual(antglob._indexInTextItemsWherePatternPartsMatch(antglob._splitTextParts("0/abc/d"), patternItems), 1)
+        self.assertEqual(antglob._indexInTextItemsWherePatternPartsMatch(antglob._splitTextParts("abc/d/e"), patternItems), 0)
+        self.assertEqual(antglob._indexInTextItemsWherePatternPartsMatch(antglob._splitTextParts("abc"), patternItems), -1)
+        self.assertEqual(antglob._indexInTextItemsWherePatternPartsMatch(antglob._splitTextParts("cannot/find/me"), patternItems), -1)
+        self.assertEqual(antglob._indexInTextItemsWherePatternPartsMatch(antglob._splitTextParts(""), patternItems), -1)
 
 class AntPatternTest(unittest.TestCase):
     def testFindListInList(self):
@@ -211,10 +211,10 @@ class AntPatternSetFindTest(unittest.TestCase):
         _log.info("find pattern set: %s", pythonSet)
         for entry in pythonSet.findEntries(self._testFolderPath):
             _log.info("  found: %s", entry)
-            if entry.kind == antglob.FolderEntry.Folder:
+            if entry.kind == antglob.FileSystemEntry.Folder:
                 folderCount += 1
             else:
-                self.assertEqual(entry.kind, antglob.FolderEntry.File)
+                self.assertEqual(entry.kind, antglob.FileSystemEntry.File)
                 suffix = entry.parts[-1]
                 self.assertTrue(suffix in (".py", ".rst"))
                 fileCount += 1
@@ -229,16 +229,16 @@ class FolderEntryTest(unittest.TestCase):
         with open(testFilePath, "wb") as testFile:
             testFile.write(testText)
         
-        folderEntry = antglob.FolderEntry(os.path.dirname(testFilePath), [os.path.basename(testFilePath)])
-        self.assertEqual(folderEntry.kind, antglob.FolderEntry.File)
+        folderEntry = antglob.FileSystemEntry(os.path.dirname(testFilePath), [os.path.basename(testFilePath)])
+        self.assertEqual(folderEntry.kind, antglob.FileSystemEntry.File)
         self.assertEqual(folderEntry.size, len(testText))
         self.assertEqual(folderEntry.parts, tuple(["test.txt"]))
         shutil.rmtree(testFolderPath)
 
     def testFolderEntry(self):
         testFolderPath = tempfile.mkdtemp(prefix="test_antpattern_")
-        folderEntry = antglob.FolderEntry(os.path.dirname(testFolderPath), [os.path.basename(testFolderPath)])
-        self.assertEqual(folderEntry.kind, antglob.FolderEntry.Folder)
+        folderEntry = antglob.FileSystemEntry(os.path.dirname(testFolderPath), [os.path.basename(testFolderPath)])
+        self.assertEqual(folderEntry.kind, antglob.FileSystemEntry.Folder)
         self.assertEqual(folderEntry.parts, tuple([os.path.basename(testFolderPath)]))
         shutil.rmtree(testFolderPath)
 

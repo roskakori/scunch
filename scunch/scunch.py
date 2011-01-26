@@ -936,7 +936,7 @@ def _listFolderItems(baseFolderPath, baseFolderItem, patternSetToMatch):
     _log.debug("  scan: %s", folderPath)
     for itemName in os.listdir(folderPath):
         item = FolderItem(baseFolderItem.parts, itemName, baseFolderPath)
-        if not patternSetToMatch or patternSetToMatch.matchesItems(item.parts):
+        if not patternSetToMatch or patternSetToMatch.matchesParts(item.parts):
             yield item
             if item.kind == FolderItem.Folder:
                 for nestedItem in _listFolderItems(baseFolderPath, item, patternSetToMatch):
@@ -954,7 +954,7 @@ def listFolderItems(folderPathToList, patternSetToMatch=None):
         # because a folder to punch cannot be meaningfully processed in case it is a file.
         raise ScmError("path to list must be a folder: %r" % folderPathToList)
     # TODO: Remove dead code below.
-    # if patternSetToMatch and not patternSetToMatch.matchesItems(item.parts):
+    # if patternSetToMatch and not patternSetToMatch.matchesParts(item.parts):
     #     raise ScmError("folder to list must be acceptable: %r" % folderPathToList)
     for nestedItem in _listFolderItems(folderPathToList, item, patternSetToMatch):
         yield nestedItem
@@ -1001,7 +1001,7 @@ class TextOptions(object):
         assert folderItemToCheck
 
         if self.textPatternSet:
-            result = self.textPatternSet.matchesItems(folderItemToCheck.parts)
+            result = self.textPatternSet.matchesParts(folderItemToCheck.parts)
         else:
             result = False
         return result
@@ -1159,7 +1159,7 @@ class ScmPuncher(object):
             workFilesToPreservePatternSet.include(workOnlyPatternText)
         for item in self.externalItems:
             _log.debug('  %s', item)
-            if workOnlyPatternText and workFilesToPreservePatternSet.matchesItems(item.parts):
+            if workOnlyPatternText and workFilesToPreservePatternSet.matchesParts(item.parts):
                 raise ScmError('entry in folder to punch must exist only in work copy: "%s"' % item.relativePath)
 
         # Collect items in work copy.
@@ -1484,7 +1484,7 @@ class ScmWork(object):
         """
         def isAcceptable(folderItem):
             if patternSetToMatch:
-                result = patternSetToMatch.matchesItems(folderItem.parts)
+                result = patternSetToMatch.matchesParts(folderItem.parts)
             else:
                 result = not self.isSpecialPath(folderItem.name)
             return result
