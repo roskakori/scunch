@@ -26,6 +26,7 @@ import unittest
 import antglob
 
 _log = logging.getLogger("test")
+
 class DocTest(unittest.TestSuite):
     def __init__(self):
         super(DocTest, self).__init__()
@@ -187,12 +188,59 @@ class AntPatternSetFindTest(unittest.TestCase):
         pythonSet = antglob.AntPatternSet()
         pythonSet.include("**/*.py, **/*.rst")
         pythonSet.exclude("**/*.pyc, **/*.pyo")
-        pathCount = 0
+        filePathCount = 0
+        folderPathCount = 0
+        _log.info("find pattern set: %s", pythonSet)
         for path in pythonSet.find(self._testFolderPath):
-            pathCount += 1
-            suffix = os.path.splitext(path)[1]
-            self.assertTrue(suffix in (".py", ".rst"))
-        self.assertTrue(pathCount)
+            _log.info("  found: %s", path)
+            if antglob.isFolderPath(path):
+                folderPathCount += 1
+            else:
+                suffix = os.path.splitext(path)[1]
+                self.assertTrue(suffix in (".py", ".rst"))
+                filePathCount += 1
+        self.assertTrue(filePathCount)
+        self.assertTrue(folderPathCount)
+
+    def testFindEntriesForPatternSet(self):
+        pythonSet = antglob.AntPatternSet()
+        pythonSet.include("**/*.py, **/*.rst")
+        pythonSet.exclude("**/*.pyc, **/*.pyo")
+        fileCount = 0
+        folderCount = 0
+        _log.info("find pattern set: %s", pythonSet)
+        for entry in pythonSet.findEntries(self._testFolderPath):
+            _log.info("  found: %s", entry)
+            if entry.kind == antglob.FolderEntry.Folder:
+                folderCount += 1
+            else:
+                self.assertEqual(entry.kind, antglob.FolderEntry.File)
+                suffix = entry.parts[-1]
+                self.assertTrue(suffix in (".py", ".rst"))
+                fileCount += 1
+        self.assertTrue(fileCount)
+        self.assertTrue(folderCount)
+
+class FolderEntryTest(unittest.TestCase):
+    def testFileEntry(self):
+        testFolderPath = tempfile.mkdtemp(prefix="test_antpattern_")
+        testFilePath = os.path.join(testFolderPath, "test.txt")
+        testText = "some test text"
+        with open(testFilePath, "wb") as testFile:
+            testFile.write(testText)
+        
+        folderEntry = antglob.FolderEntry(os.path.dirname(testFilePath), [os.path.basename(testFilePath)])
+        self.assertEqual(folderEntry.kind, antglob.FolderEntry.File)
+        self.assertEqual(folderEntry.size, len(testText))
+        self.assertEqual(folderEntry.parts, tuple(["test.txt"]))
+        shutil.rmtree(testFolderPath)
+
+    def testFolderEntry(self):
+        testFolderPath = tempfile.mkdtemp(prefix="test_antpattern_")
+        folderEntry = antglob.FolderEntry(os.path.dirname(testFolderPath), [os.path.basename(testFolderPath)])
+        self.assertEqual(folderEntry.kind, antglob.FolderEntry.Folder)
+        self.assertEqual(folderEntry.parts, tuple([os.path.basename(testFolderPath)]))
+        shutil.rmtree(testFolderPath)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)

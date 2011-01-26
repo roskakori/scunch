@@ -852,13 +852,13 @@ class FolderItem(object):
         if name:
             itemElements.append(name)
 
-        self.elements = tuple(itemElements)
+        self.parts = tuple(itemElements)
         # TODO: Change attribute ``name``to read only property.
-        if self.elements:
-            self.name = self.elements[-1]
+        if self.parts:
+            self.name = self.parts[-1]
         else:
             self.name = ""
-        self.relativePath = resolvedPathElements(self.elements)
+        self.relativePath = resolvedPathElements(self.parts)
         self.path = self.absolutePath(baseFolderPath)
         try:
             itemInfo = os.stat(self.path)
@@ -882,16 +882,16 @@ class FolderItem(object):
         return os.path.join(baseFolderPath, self.relativePath)
 
     def __hash__(self):
-        return self.elements.__hash__()
+        return self.parts.__hash__()
 
     def __cmp__(self, other):
-        return cmp(self.elements, other.elements)
+        return cmp(self.parts, other.parts)
 
     def __eq__(self, other):
-        return self.elements == other.elements
+        return self.parts == other.parts
 
     def __unicode__(self):
-        return u"<FolderItem: kind=%s, elements=%s>" % (self.kind, self.elements)
+        return u"<FolderItem: kind=%s, parts=%s>" % (self.kind, self.parts)
         
     def __str__(self):
         return unicode(self).encode('utf-8')
@@ -909,7 +909,7 @@ def _sortedFolderItems(folderItemsToSort):
         if typeComparison:
             result = typeComparison
         else:
-            result = cmp(some.elements, other.elements)
+            result = cmp(some.parts, other.parts)
         return result
 
     assert folderItemsToSort is not None
@@ -928,15 +928,15 @@ def resolvedPathElements(elements=[]):
 
 def _listFolderItems(baseFolderPath, baseFolderItem, patternSetToMatch):
     """
-    List of folder items starting with ``baseFolderPath`` joined according to the path elements
+    List of folder items starting with ``baseFolderPath`` joined according to the path parts
     of ``baseFolderItem``.
     """
     assert baseFolderItem.kind == FolderItem.Folder
     folderPath = baseFolderItem.absolutePath(baseFolderPath)
     _log.debug("  scan: %s", folderPath)
     for itemName in os.listdir(folderPath):
-        item = FolderItem(baseFolderItem.elements, itemName, baseFolderPath)
-        if not patternSetToMatch or patternSetToMatch.matchesItems(item.elements):
+        item = FolderItem(baseFolderItem.parts, itemName, baseFolderPath)
+        if not patternSetToMatch or patternSetToMatch.matchesItems(item.parts):
             yield item
             if item.kind == FolderItem.Folder:
                 for nestedItem in _listFolderItems(baseFolderPath, item, patternSetToMatch):
@@ -954,7 +954,7 @@ def listFolderItems(folderPathToList, patternSetToMatch=None):
         # because a folder to punch cannot be meaningfully processed in case it is a file.
         raise ScmError("path to list must be a folder: %r" % folderPathToList)
     # TODO: Remove dead code below.
-    # if patternSetToMatch and not patternSetToMatch.matchesItems(item.elements):
+    # if patternSetToMatch and not patternSetToMatch.matchesItems(item.parts):
     #     raise ScmError("folder to list must be acceptable: %r" % folderPathToList)
     for nestedItem in _listFolderItems(folderPathToList, item, patternSetToMatch):
         yield nestedItem
@@ -1001,7 +1001,7 @@ class TextOptions(object):
         assert folderItemToCheck
 
         if self.textPatternSet:
-            result = self.textPatternSet.matchesItems(folderItemToCheck.elements)
+            result = self.textPatternSet.matchesItems(folderItemToCheck.parts)
         else:
             result = False
         return result
@@ -1063,7 +1063,7 @@ class ScmPuncher(object):
         if self._removedItems:
             lastRemovedItem = self._removedItems[-1]
             if lastRemovedItem.kind == FolderItem.Folder:
-                if lastRemovedItem.elements == itemToCheck.elements[:len(lastRemovedItem.elements)]:
+                if lastRemovedItem.parts == itemToCheck.parts[:len(lastRemovedItem.parts)]:
                     result = True
         return result
 
@@ -1159,7 +1159,7 @@ class ScmPuncher(object):
             workFilesToPreservePatternSet.include(workOnlyPatternText)
         for item in self.externalItems:
             _log.debug('  %s', item)
-            if workOnlyPatternText and workFilesToPreservePatternSet.matchesItems(item.elements):
+            if workOnlyPatternText and workFilesToPreservePatternSet.matchesItems(item.parts):
                 raise ScmError('entry in folder to punch must exist only in work copy: "%s"' % item.relativePath)
 
         # Collect items in work copy.
@@ -1484,7 +1484,7 @@ class ScmWork(object):
         """
         def isAcceptable(folderItem):
             if patternSetToMatch:
-                result = patternSetToMatch.matchesItems(folderItem.elements)
+                result = patternSetToMatch.matchesItems(folderItem.parts)
             else:
                 result = not self.isSpecialPath(folderItem.name)
             return result

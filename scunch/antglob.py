@@ -31,10 +31,12 @@ To sum it up:
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import errno
 import fnmatch
 import logging
 import os
 import re
+import stat
 
 _log = logging.getLogger("antglob")
 
@@ -44,34 +46,34 @@ _AntMagicRegEx = re.compile('[*?[]')
 
 # Patterns to exclude by default similar to ant 1.8.2.
 DefaultExcludes = (
-     "**/*~",
-     "**/#*#",
-     "**/.#*",
-     "**/%*%",
-     "**/._*",
-     "**/CVS",
-     "**/CVS/**",
-     "**/.cvsignore",
-     "**/SCCS",
-     "**/SCCS/**",
-     "**/vssver.scc",
-     "**/.svn",
-     "**/.svn/**",
-     "**/.DS_Store",
-     "**/.git",
-     "**/.git/**",
-     "**/.gitattributes",
-     "**/.gitignore",
-     "**/.gitmodules",
-     "**/.hg",
-     "**/.hg/**",
-     "**/.hgignore",
-     "**/.hgsub",
-     "**/.hgsubstate",
-     "**/.hgtags",
-     "**/.bzr",
-     "**/.bzr/**",
-     "**/.bzrignore"
+     u"**/*~",
+     u"**/#*#",
+     u"**/.#*",
+     u"**/%*%",
+     u"**/._*",
+     u"**/CVS",
+     u"**/CVS/**",
+     u"**/.cvsignore",
+     u"**/SCCS",
+     u"**/SCCS/**",
+     u"**/vssver.scc",
+     u"**/.svn",
+     u"**/.svn/**",
+     u"**/.DS_Store",
+     u"**/.git",
+     u"**/.git/**",
+     u"**/.gitattributes",
+     u"**/.gitignore",
+     u"**/.gitmodules",
+     u"**/.hg",
+     u"**/.hg/**",
+     u"**/.hgignore",
+     u"**/.hgsub",
+     u"**/.hgsubstate",
+     u"**/.hgtags",
+     u"**/.bzr",
+     u"**/.bzr/**",
+     u"**/.bzrignore"
 )
 
 def createAntPatterns(patternListText):
@@ -89,11 +91,83 @@ def createAntPatterns(patternListText):
         result.append(AntPattern(patternTextItem))
     return result
 
+def resolvedPathElements(elements=[]):
+    # TODO: Rename to ``resolvedPathParts``.
+    assert elements is not None
+    result = ""
+    for element in elements:
+        result = os.path.join(result, element)
+    return result
+
+def isFolderPath(pathToCheck):
+    """
+    ``True`` if ``pathToCheck`` indicates a folder path as returned by `AntPatternSet.find()`.
+    """
+    assert pathToCheck is not None
+    return pathToCheck.endswith(os.sep)
+
 class AntPatternError(Exception):
     """
     Error raised if an ant-like pattern is broken or cannot be processed.
     """
     pass
+
+class FolderEntry(object):
+    """
+    Entry in a file system folder relative to a base folder. This typically is a file or folder.
+    """
+    File = 'file'
+    Folder = 'folder'
+
+    def __init__(self, baseFolderPath="", parts=[]):
+        assert parts is not None
+        assert baseFolderPath is not None
+        
+        self.parts = tuple(parts)
+        if self.parts:
+            self.name = self.parts[-1]
+        else:
+            self.name = ""
+        self.relativePath = resolvedPathElements(self.parts)
+        self.path = self.absolutePath(baseFolderPath)
+        try:
+            itemInfo = os.stat(self.path)
+        except OSError, error:
+            if error.errno == errno.ENOENT:
+                raise AntPatternError("folder entry must remain during processing but was removed in the background: %r" % self.path)
+            else:
+                raise
+        itemMode = itemInfo.st_mode
+        if stat.S_ISDIR(itemMode):
+            self.kind = FolderEntry.Folder
+        elif stat.S_ISREG(itemMode):
+            self.kind = FolderEntry.File
+        else:
+            raise AntPatternError("folder entry must be a folder or file: %r" % self.path)
+        self.size = itemInfo.st_size
+        self.timeModified = itemInfo.st_mtime
+
+    def absolutePath(self, baseFolderPath):
+        assert baseFolderPath is not None
+        return os.path.join(baseFolderPath, self.relativePath)
+
+    def __hash__(self):
+        return self.parts.__hash__()
+
+    def __cmp__(self, other):
+        return cmp(self.parts, other.parts)
+
+    def __eq__(self, other):
+        return self.parts == other.parts
+
+    def __unicode__(self):
+        return u"<FolderEntry: kind=%s, parts=%s>" % (self.kind, self.parts)
+        
+    def __str__(self):
+        return unicode(self).encode('utf-8')
+    
+    def __repr__(self):
+        return self.__str__()
 
 class AntPatternItem(object):
     """
@@ -442,6 +516,7 @@ class AntPatternSet(object):
         return result
 
     def _findInFolder(self, folderTextItems, folderPath):
+        # FIXME: Yield paths relative to base folder.
         for itemName in os.listdir(folderPath):
             path = os.path.join(folderPath, itemName)
             pathTextItems = list(folderTextItems)
@@ -463,16 +538,51 @@ class AntPatternSet(object):
                     # Without include pattern, yield everything
                     yield path
 
-    def ifind(self, folderPath=os.getcwdu()):
-        for path in self._findInFolder([], folderPath):
+    def ifind(self, folderToScanPath=os.getcwdu()):
+        """
+        Like `find()` but iterates over `folderToScanPath` instead of returning a list of paths.
+        """
+        folderPathsYield = set([folderToScanPath])
+        for path in self._findInFolder([], folderToScanPath):
+            # Yield all sub folders of `path` that have not been yield yet.
+            parentFolderPathsToYield = []
+            folderPath = os.path.dirname(path)
+            while folderPath not in folderPathsYield:
+                parentFolderPathsToYield.insert(0, folderPath + os.sep)
+                folderPathsYield.update([folderPath])
+            for folderPath in parentFolderPathsToYield:
+                yield folderPath
             yield path
 
-    def find(self, folderPath=os.getcwdu()):
+    def find(self, folderToScanPath=os.getcwdu()):
+        """
+        List of paths of files relative to ``folderPath`` matching the pattern set.
+        """
         result = []
-        for path in self.ifind(folderPath):
+        for path in self.ifind(folderToScanPath):
             result.append(path)
         return result
 
+    def ifindEntries(self, folderToScanPath=os.getcwdu()):
+        """
+        Like `findEntries()` but iterates over `folderToScanPath` instead of returning a list of paths.
+        """
+        for path in self.find(folderToScanPath):
+            parts = _splitTextItems(path)
+            print "  parts:", parts
+            yield FolderEntry(folderToScanPath, parts)
+
+    def findEntries(self, folderToScanPath=os.getcwdu()):
+        """
+        List containing a `FolderEntry` for each file matching the pattern set or any folder
+        containing at least one such file.
+        """
+        result = []
+        for entry in self.ifindEntries(folderToScanPath):
+            result.append(entry)
+        return result
+
+        
     def __unicode__(self):
         return u"<AntPatternSet: include=%s, exclude=%s>" % (self.includePatterns, self.excludePatterns)
         
