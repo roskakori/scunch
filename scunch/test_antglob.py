@@ -210,11 +210,26 @@ class AntPatternSetFindTest(unittest.TestCase):
         _log.info("find pattern set: %s", pythonSet)
         for path in pythonSet.find(self._testFolderPath):
             _log.info("  found: %s", path)
-            self.assertFalse(antglob.isFolderPath(path), "path must noe be folder: %r" % path)
+            self.assertFalse(antglob.isFolderPath(path), "path must not be folder: %r" % path)
             suffix = os.path.splitext(path)[1]
             self.assertTrue(suffix in (".py", ".rst"))
             filePathCount += 1
         self.assertTrue(filePathCount)
+
+    def testFindPatternSetOnEmptyFolder(self):
+        pythonSet = antglob.AntPatternSet()
+        
+        # Create a test folder containing exactly 1 empty sub folder.
+        testFolderPath = tempfile.mkdtemp(prefix="test_antpattern_")
+        emptyFolderPath = os.path.join(testFolderPath, "emptyFolder")
+        os.mkdir(emptyFolderPath)
+
+        pathCount = 0        
+        for path in pythonSet.find(testFolderPath, True):
+            _log.info("  found: %s", path)
+            pathCount += 1
+            self.assertTrue(antglob.isFolderPath(path), "path must be a folder: %r" % path)
+        self.assertEqual(pathCount, 1)
 
     def testFindEntriesForPatternSet(self):
         pythonSet = antglob.AntPatternSet()
@@ -258,5 +273,5 @@ class FolderEntryTest(unittest.TestCase):
         shutil.rmtree(testFolderPath)
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.WARNING)
+    logging.basicConfig(level=logging.INFO)
     unittest.main()

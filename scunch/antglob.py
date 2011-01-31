@@ -91,11 +91,11 @@ def createAntPatterns(patternListText):
         result.append(AntPattern(patternTextItem))
     return result
 
-def resolvedPathElements(elements=[]):
+def resolvedPathParts(parts=[]):
     # TODO: Rename to ``resolvedPathParts``.
-    assert elements is not None
+    assert parts is not None
     result = ""
-    for element in elements:
+    for element in parts:
         result = os.path.join(result, element)
     return result
 
@@ -105,6 +105,10 @@ def isFolderPath(pathToCheck):
     """
     assert pathToCheck is not None
     return pathToCheck.endswith(os.sep)
+
+def _asFolderPath(path):
+    assert path is not None
+    return path + os.sep
 
 class AntPatternError(Exception):
     """
@@ -128,7 +132,7 @@ class FileSystemEntry(object):
             self.name = self.parts[-1]
         else:
             self.name = ""
-        self.relativePath = resolvedPathElements(self.parts)
+        self.relativePath = resolvedPathParts(self.parts)
         self.path = self.absolutePath(baseFolderPath)
         try:
             entryInfo = os.stat(self.path)
@@ -515,11 +519,14 @@ class AntPatternSet(object):
             result = False
         return result
 
-    def _findInFolder(self, baseFolderPath, relativeFolderParts, relativeFolderPath):
+    def _findInFolder(self, baseFolderPath, relativeFolderParts, relativeFolderPath, addFolders):
         assert baseFolderPath is not None
         assert relativeFolderParts is not None
         assert relativeFolderPath is not None
-        for nameToExamine in os.listdir(os.path.join(baseFolderPath, relativeFolderPath)):
+        folderToScanPath = os.path.join(baseFolderPath, relativeFolderPath)
+        folderPathsYield = set([folderToScanPath])
+        foundMatchingFilesOrSubFolders = False
+        for nameToExamine in os.listdir(folderToScanPath):
             pathToExamine = os.path.join(relativeFolderPath, nameToExamine)
             pathToExamineParts = list(relativeFolderParts)
             pathToExamineParts.append(nameToExamine)
@@ -532,32 +539,36 @@ class AntPatternSet(object):
                 if os.path.isdir(fullPathToExamine):
                     # TODO: Scan into folder only if include patterns suggest there is a chance to
                     # actually find anything there.
-                    for pathToExamine in self._findInFolder(baseFolderPath, pathToExamineParts, pathToExamine):
-                        yield pathToExamine
+                    for pathToExamine in self._findInFolder(baseFolderPath, pathToExamineParts, pathToExamine, addFolders):
+                        if not foundMatchingFilesOrSubFolders:
+                            foundMatchingFilesOrSubFolders = True
+                    if addFolders:
+                        # Yield all containing folders of `path` that have not been yield yet.
+                        parentFolderPathsToYield = []
+                        containingFolderPath = os.path.dirname(pathToExamine)
+                        if isFolderPath(pathToExamine):
+                            containingFolderPath = _asFolderPath(os.path.dirname(containingFolderPath))
+                        while containingFolderPath not in folderPathsYield:
+                            parentFolderPathsToYield.insert(0, _asFolderPath(containingFolderPath))
+                            folderPathsYield.update([containingFolderPath])
+                        for containingFolderPath in parentFolderPathsToYield:
+                            yield containingFolderPath
+                    yield pathToExamine
                 elif self.includePatterns:
                     if self._matchesAnyPatternIn(pathToExamineParts, self.includePatterns):
                         yield pathToExamine
                 else:
                     # Without include pattern, yield everything
                     yield pathToExamine
+        if addFolders and not foundMatchingFilesOrSubFolders and self.matches(folderToScanPath):
+            yield _asFolderPath(folderToScanPath)
 
     def ifind(self, folderToScanPath=os.getcwdu(), addFolders=False):
         """
         Like `find()` but iterates over `folderToScanPath` instead of returning a list of paths.
         """
         assert folderToScanPath is not None
-        folderPathsYield = set([folderToScanPath])
-        for path in self._findInFolder(folderToScanPath, [], ""):
-            if addFolders:
-                # Yield all sub folders of `path` that have not been yield yet.
-                parentFolderPathsToYield = []
-                folderPath = os.path.dirname(path)
-                while folderPath not in folderPathsYield:
-                    parentFolderPathsToYield.insert(0, folderPath + os.sep)
-                    folderPathsYield.update([folderPath])
-                for folderPath in parentFolderPathsToYield:
-                    yield folderPath
-            # Yield the current file path.
+        for path in self._findInFolder(folderToScanPath, [], "", addFolders):
             yield path
 
     def find(self, folderToScanPath=os.getcwdu(), addFolders=False):
@@ -572,9 +583,9 @@ class AntPatternSet(object):
 
     def ifindEntries(self, folderToScanPath=os.getcwdu()):
         """
-        Like `findEntries()` but iterates over `folderToScanPath` instead of returning a list of paths.
+        Like `findEntries()` but iterates over ``folderToScanPath`` instead of returning a list of paths.
         """
-        for path in self.find(folderToScanPath, True):
+        for path in self.ifind(folderToScanPath, True):
             parts = _splitTextParts(path)
             yield FileSystemEntry(folderToScanPath, parts)
 
@@ -599,7 +610,7 @@ class AntPatternSet(object):
         return self.__str__()
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.WARNING)
     _log.info("running doctest")
     import doctest
     doctest.testmod()
