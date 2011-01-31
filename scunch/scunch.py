@@ -531,14 +531,12 @@ Added options to normalize text files and fixed some critical bugs.
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import codecs
 import difflib
-import errno
 import locale
 import logging
 import optparse
 import os.path
 import platform
 import shutil
-import stat
 import subprocess
 import sys
 import tempfile
@@ -838,69 +836,8 @@ class ScmStorage(object):
         scmCommand.extend(self.absoluteQualifiers(relativeQualifiersToCreate)) 
         run(scmCommand)
 
-class FolderItem(object):
-    File = 'file'
-    Folder = 'folder'
-
-    def __init__(self, elements=[], name="", baseFolderPath=""):
-        # TODO: Consider removing parameter ``name``.
-        assert elements is not None
-        assert name is not None
-        assert baseFolderPath is not None
-        
-        itemElements = list(elements)
-        if name:
-            itemElements.append(name)
-
-        self.parts = tuple(itemElements)
-        # TODO: Change attribute ``name``to read only property.
-        if self.parts:
-            self.name = self.parts[-1]
-        else:
-            self.name = ""
-        self.relativePath = resolvedPathElements(self.parts)
-        self.path = self.absolutePath(baseFolderPath)
-        try:
-            itemInfo = os.stat(self.path)
-        except OSError, error:
-            if error.errno == errno.ENOENT:
-                raise ScmError("folder item must remain during processing but was removed in the background: %r" % self.path)
-            else:
-                raise
-        itemMode = itemInfo.st_mode
-        if stat.S_ISDIR(itemMode):
-            self.kind = FolderItem.Folder
-        elif stat.S_ISREG(itemMode):
-            self.kind = FolderItem.File
-        else:
-            raise ScmError("folder item must be a folder or file: %r" % self.path)
-        self.size = itemInfo.st_size
-        self.timeModified = itemInfo.st_mtime
-
-    def absolutePath(self, baseFolderPath):
-        assert baseFolderPath is not None
-        return os.path.join(baseFolderPath, self.relativePath)
-
-    def __hash__(self):
-        return self.parts.__hash__()
-
-    def __cmp__(self, other):
-        return cmp(self.parts, other.parts)
-
-    def __eq__(self, other):
-        return self.parts == other.parts
-
-    def __unicode__(self):
-        return u"<FolderItem: kind=%s, parts=%s>" % (self.kind, self.parts)
-        
-    def __str__(self):
-        return unicode(self).encode('utf-8')
-    
-    def __repr__(self):
-        return self.__str__()
-
-def _sortedFolderItems(folderItemsToSort):
-    def comparedFolderItems(some, other):
+def _sortedFileSystemEntries(folderItemsToSort):
+    def comparedFileSystemEntries(some, other):
         assert some is not None
         assert other is not None
         
@@ -916,47 +853,42 @@ def _sortedFolderItems(folderItemsToSort):
     result = []
     for item in folderItemsToSort:
         result.append(item)
-    result = sorted(result, comparedFolderItems)
+    result = sorted(result, comparedFileSystemEntries)
     return result
 
-def resolvedPathElements(elements=[]):
-    assert elements is not None
-    result = ""
-    for element in elements:
-        result = os.path.join(result, element)
-    return result
-
-def _listFolderItems(baseFolderPath, baseFolderItem, patternSetToMatch):
+# TODO: Remove dead code.
+def ___listFolderItems(baseFolderPath, baseFolderItem, patternSetToMatch):
     """
     List of folder items starting with ``baseFolderPath`` joined according to the path parts
     of ``baseFolderItem``.
     """
-    assert baseFolderItem.kind == FolderItem.Folder
+    assert baseFolderItem.kind == antglob.FileSystemEntry.Folder
     folderPath = baseFolderItem.absolutePath(baseFolderPath)
     _log.debug("  scan: %s", folderPath)
     for itemName in os.listdir(folderPath):
-        item = FolderItem(baseFolderItem.parts, itemName, baseFolderPath)
+        item = antglob.FileSystemEntry(baseFolderItem.parts, itemName, baseFolderPath)
         if not patternSetToMatch or patternSetToMatch.matchesParts(item.parts):
             yield item
-            if item.kind == FolderItem.Folder:
-                for nestedItem in _listFolderItems(baseFolderPath, item, patternSetToMatch):
+            if item.kind == antglob.FileSystemEntry.Folder:
+                for nestedItem in ___listFolderItems(baseFolderPath, item, patternSetToMatch):
                     yield nestedItem
         else:
             _log.debug("  reject: %s", item)
 
-def listFolderItems(folderPathToList, patternSetToMatch=None):
+# TODO: Remove dead code.
+def __listFolderItems(folderPathToList, patternSetToMatch=None):
     """
     List of folder items starting with ``folderPathToList``.
     """
-    item = FolderItem(baseFolderPath=folderPathToList)
-    if item.kind != FolderItem.Folder:
+    item = antglob.FileSystemEntry(baseFolderPath=folderPathToList)
+    if item.kind != antglob.FileSystemEntry.Folder:
         # Note: We could easily "yield" a file too. The current design just does not require this
         # because a folder to punch cannot be meaningfully processed in case it is a file.
         raise ScmError("path to list must be a folder: %r" % folderPathToList)
     # TODO: Remove dead code below.
     # if patternSetToMatch and not patternSetToMatch.matchesParts(item.parts):
     #     raise ScmError("folder to list must be acceptable: %r" % folderPathToList)
-    for nestedItem in _listFolderItems(folderPathToList, item, patternSetToMatch):
+    for nestedItem in ___listFolderItems(folderPathToList, item, patternSetToMatch):
         yield nestedItem
 
 class TextOptions(object):
@@ -1062,7 +994,7 @@ class ScmPuncher(object):
         result = False
         if self._removedItems:
             lastRemovedItem = self._removedItems[-1]
-            if lastRemovedItem.kind == FolderItem.Folder:
+            if lastRemovedItem.kind == antglob.FileSystemEntry.Folder:
                 if lastRemovedItem.parts == itemToCheck.parts[:len(lastRemovedItem.parts)]:
                     result = True
         return result
@@ -1149,8 +1081,8 @@ class ScmPuncher(object):
             filesToPunchPatternSet.exclude(excludePatternText)
 
         # Collect external items.
-        self.externalItems = listFolderItems(externalFolderPath, filesToPunchPatternSet)
-        self.externalItems = _sortedFolderItems(self.externalItems)
+        self.externalItems = filesToPunchPatternSet.findEntries(externalFolderPath)
+        self.externalItems = _sortedFileSystemEntries(self.externalItems)
         _log.info('found %d external items in "%s"', len(self.externalItems), self._externalFolderPath)
 
         # Check that external items do contain any work only items.
@@ -1166,7 +1098,7 @@ class ScmPuncher(object):
         if workOnlyPatternText:
             filesToPunchPatternSet.exclude(workOnlyPatternText)
         self.workItems = self.scmWork.listFolderItems(relativeWorkFolderPath, filesToPunchPatternSet)
-        self.workItems = _sortedFolderItems(self.workItems)
+        self.workItems = _sortedFileSystemEntries(self.workItems)
         _log.info('found %d work items in "%s"', len(self.workItems), self.scmWork.absolutePath("work path", relativeWorkFolderPath))
         for item in self.workItems:
             _log.debug('  %s', item)
@@ -1238,7 +1170,7 @@ class ScmPuncher(object):
             correspondingRemovedItems = removedNameMap.get(possiblyMovedItemKey)
             if correspondingRemovedItems:
                 # TODO: Process all moved items of the same name as long as there is both an added and removed item.
-                if possiblyMovedItemKind == FolderItem.File:
+                if possiblyMovedItemKind == antglob.FileSystemEntry.File:
                         sourceItem = correspondingRemovedItems[0]
                         targetItem = possiblyMovedItems[0]
                         _log.debug('schedule for move: "%s" to "%s"', sourceItem.relativePath, targetItem.relativePath)
@@ -1263,7 +1195,7 @@ class ScmPuncher(object):
         if self._transferedItems:
             _log.info("transfer %d items", len(self._transferedItems))
             for itemToTransfer in self._transferedItems:
-                if itemToTransfer.kind == FolderItem.Folder:
+                if itemToTransfer.kind == antglob.FileSystemEntry.Folder:
                     _tools.makeFolder(self._workPathFor(itemToTransfer))
                 else:
                     _log.info('  transfer "%s"', itemToTransfer.relativePath)
@@ -1276,7 +1208,7 @@ class ScmPuncher(object):
                 relativePathToAdd = itemToAdd.relativePath
                 _log.info('  add "%s"', relativePathToAdd)
                 relativePathsToAdd.append(relativePathToAdd)
-                if itemToAdd.kind == FolderItem.Folder:
+                if itemToAdd.kind == antglob.FileSystemEntry.Folder:
                     _tools.makeFolder(self._workPathFor(itemToAdd))
                 else:
                     self._transferItemFromExternalToWork(itemToAdd, textOptions)
@@ -1482,21 +1414,13 @@ class ScmWork(object):
         List of folder items starting with ``relativeFolderPathToList`` excluding special items
         used internally by the SCM (such as for example ".svn" for Subversion).
         """
-        def isAcceptable(folderItem):
-            if patternSetToMatch:
-                result = patternSetToMatch.matchesParts(folderItem.parts)
-            else:
-                result = not self.isSpecialPath(folderItem.name)
-            return result
-
-        if relativeFolderToList:
-            raise NotImplementedError
-        folderPathToList = self.localTargetPath
-        item = FolderItem(baseFolderPath=folderPathToList)
-        if item.kind != FolderItem.Folder:
-            raise ScmError("work copy path to list must be a folder: %r" % folderPathToList)
-        for nestedItem in _listFolderItems(folderPathToList, item, patternSetToMatch):
-            yield nestedItem
+        if patternSetToMatch:
+            actualPatternSetToMatch = patternSetToMatch
+        else:
+            actualPatternSetToMatch = antglob.AntPatternSet()
+        folderPathToList = self.absolutePath("folder to list", relativeFolderToList)
+        for entry in actualPatternSetToMatch.ifindEntries(folderPathToList):
+            yield entry
 
     def status(self, relativePathsToExamine, recursive=True):
         absolutePathsToExamine = self.absolutePaths("paths to examine", relativePathsToExamine)

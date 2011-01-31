@@ -25,7 +25,6 @@ from urlparse import urljoin
 
 import scunch
 import _tools
-import antglob
 
 _log = logging.getLogger("test")
 
