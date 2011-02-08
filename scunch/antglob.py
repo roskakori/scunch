@@ -92,7 +92,6 @@ def createAntPatterns(patternListText):
     return result
 
 def resolvedPathParts(parts=[]):
-    # TODO: Rename to ``resolvedPathParts``.
     assert parts is not None
     result = ""
     for element in parts:
@@ -109,6 +108,14 @@ def isFolderPath(pathToCheck):
 def _asFolderPath(path):
     assert path is not None
     return path + os.sep
+
+def _parentOfFolderPath(folderPath):
+    """
+    Like ``folderPath`` but without the trailing `os.sep`.
+    """
+    assert folderPath
+    assert isFolderPath(folderPath)
+    return os.path.dirname(folderPath[:-1])
 
 class AntPatternError(Exception):
     """
@@ -523,11 +530,15 @@ class AntPatternSet(object):
         assert baseFolderPath is not None
         assert relativeFolderParts is not None
         assert relativeFolderPath is not None
+        if relativeFolderPath.startswith(os.sep):
+            raise ValueError("relative path must not start with %r: %r" % (os.sep, relativeFolderPath))
         folderToScanPath = os.path.join(baseFolderPath, relativeFolderPath)
-        folderPathsYield = set([folderToScanPath])
+        folderPathsYield = set([relativeFolderPath])
         foundMatchingFilesOrSubFolders = False
         for nameToExamine in os.listdir(folderToScanPath):
             pathToExamine = os.path.join(relativeFolderPath, nameToExamine)
+            if pathToExamine.startswith(os.sep):
+                raise ValueError("pathToExamine must not start with %r: %r" % (os.sep, pathToExamine))
             pathToExamineParts = list(relativeFolderParts)
             pathToExamineParts.append(nameToExamine)
             if self.excludePatterns:
@@ -542,34 +553,38 @@ class AntPatternSet(object):
                     for pathToExamine in self._findInFolder(baseFolderPath, pathToExamineParts, pathToExamine, addFolders):
                         if not foundMatchingFilesOrSubFolders:
                             foundMatchingFilesOrSubFolders = True
-                    if addFolders:
-                        # Yield all containing folders of `path` that have not been yield yet.
-                        parentFolderPathsToYield = []
-                        containingFolderPath = os.path.dirname(pathToExamine)
-                        if isFolderPath(pathToExamine):
-                            containingFolderPath = _asFolderPath(os.path.dirname(containingFolderPath))
-                        while containingFolderPath not in folderPathsYield:
-                            parentFolderPathsToYield.insert(0, _asFolderPath(containingFolderPath))
-                            folderPathsYield.update([containingFolderPath])
-                        for containingFolderPath in parentFolderPathsToYield:
-                            yield containingFolderPath
-                    yield pathToExamine
+                        if addFolders and isFolderPath(pathToExamine):
+                            # Yield all containing folders of `pathToExamine` that have not been yield yet.
+                            parentFolderPathsToYield = []
+                            containingFolderPath = _parentOfFolderPath(pathToExamine)
+                            if containingFolderPath:
+                                assert containingFolderPath != os.sep
+                                while containingFolderPath not in folderPathsYield:
+                                    parentFolderPathsToYield.insert(0, containingFolderPath)
+                                    folderPathsYield.update([containingFolderPath])
+                                for containingFolderPath in parentFolderPathsToYield:
+                                    if containingFolderPath.startswith(os.sep):
+                                        raise ValueError("containingFolderPath must not start with %r: %r" % (os.sep, containingFolderPath))
+                                    yield _asFolderPath(containingFolderPath)
+                        yield pathToExamine
                 elif self.includePatterns:
                     if self._matchesAnyPatternIn(pathToExamineParts, self.includePatterns):
                         yield pathToExamine
                 else:
                     # Without include pattern, yield everything
                     yield pathToExamine
-        if addFolders and not foundMatchingFilesOrSubFolders and self.matches(folderToScanPath):
-            yield _asFolderPath(folderToScanPath)
+        if addFolders and not foundMatchingFilesOrSubFolders and self.matches(relativeFolderPath):
+            yield _asFolderPath(relativeFolderPath)
 
     def ifind(self, folderToScanPath=os.getcwdu(), addFolders=False):
         """
         Like `find()` but iterates over `folderToScanPath` instead of returning a list of paths.
         """
         assert folderToScanPath is not None
-        for path in self._findInFolder(folderToScanPath, [], "", addFolders):
-            yield path
+        for relativePath in self._findInFolder(folderToScanPath, [], "", addFolders):
+            if relativePath.startswith(os.sep):
+                assert not relativePath.startswith(os.sep), "relativePath=%r" % relativePath
+            yield relativePath
 
     def find(self, folderToScanPath=os.getcwdu(), addFolders=False):
         """
