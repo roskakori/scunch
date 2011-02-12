@@ -526,14 +526,16 @@ class AntPatternSet(object):
             result = False
         return result
 
-    def _findInFolder(self, baseFolderPath, relativeFolderParts, relativeFolderPath, addFolders):
+    def _findFilesAndEmptyFolders(self, baseFolderPath, relativeFolderParts, relativeFolderPath, addFolders):
+        """
+        Find files and empty folders matching the pattern.
+        """
         assert baseFolderPath is not None
         assert relativeFolderParts is not None
         assert relativeFolderPath is not None
         if relativeFolderPath.startswith(os.sep):
             raise ValueError("relative path must not start with %r: %r" % (os.sep, relativeFolderPath))
         folderToScanPath = os.path.join(baseFolderPath, relativeFolderPath)
-        folderPathsYield = set([relativeFolderPath])
         foundMatchingFilesOrSubFolders = False
         for nameToExamine in os.listdir(folderToScanPath):
             pathToExamine = os.path.join(relativeFolderPath, nameToExamine)
@@ -550,38 +552,48 @@ class AntPatternSet(object):
                 if os.path.isdir(fullPathToExamine):
                     # TODO: Scan into folder only if include patterns suggest there is a chance to
                     # actually find anything there.
-                    for pathToExamine in self._findInFolder(baseFolderPath, pathToExamineParts, pathToExamine, addFolders):
+                    for pathToExamine in self._findFilesAndEmptyFolders(baseFolderPath, pathToExamineParts, pathToExamine, addFolders):
                         if not foundMatchingFilesOrSubFolders:
                             foundMatchingFilesOrSubFolders = True
-                        if addFolders and isFolderPath(pathToExamine):
-                            # Yield all containing folders of `pathToExamine` that have not been yield yet.
-                            parentFolderPathsToYield = []
-                            containingFolderPath = _parentOfFolderPath(pathToExamine)
-                            if containingFolderPath:
-                                assert containingFolderPath != os.sep
-                                while containingFolderPath not in folderPathsYield:
-                                    parentFolderPathsToYield.insert(0, containingFolderPath)
-                                    folderPathsYield.update([containingFolderPath])
-                                for containingFolderPath in parentFolderPathsToYield:
-                                    if containingFolderPath.startswith(os.sep):
-                                        raise ValueError("containingFolderPath must not start with %r: %r" % (os.sep, containingFolderPath))
-                                    yield _asFolderPath(containingFolderPath)
                         yield pathToExamine
                 elif self.includePatterns:
                     if self._matchesAnyPatternIn(pathToExamineParts, self.includePatterns):
                         yield pathToExamine
                 else:
-                    # Without include pattern, yield everything
+                    # Without include pattern, yield everything.
                     yield pathToExamine
         if addFolders and not foundMatchingFilesOrSubFolders and self.matches(relativeFolderPath):
+            # If no files or sub folders could be found but the folder itself matches, yield it.
             yield _asFolderPath(relativeFolderPath)
+
+    def _findInFolder(self, baseFolderPath, addFolders):
+        assert baseFolderPath is not None
+        folderPathsYield = set()
+        for pathToExamine in self._findFilesAndEmptyFolders(baseFolderPath, [], "", addFolders):
+            if addFolders:
+                # Yield all containing folders of `pathToExamine` that have not been yield yet.
+                if isFolderPath(pathToExamine):
+                    containingFolderPath = _parentOfFolderPath(pathToExamine)
+                else:
+                    containingFolderPath = os.path.dirname(pathToExamine)
+                parentFolderPathsToYield = []
+                if containingFolderPath:
+                    assert containingFolderPath != os.sep
+                    while containingFolderPath not in folderPathsYield:
+                        parentFolderPathsToYield.insert(0, containingFolderPath)
+                        folderPathsYield.update([containingFolderPath])
+                    for containingFolderPath in parentFolderPathsToYield:
+                        if containingFolderPath.startswith(os.sep):
+                            raise ValueError("containingFolderPath must not start with %r: %r" % (os.sep, containingFolderPath))
+                        yield _asFolderPath(containingFolderPath)
+            yield pathToExamine
 
     def ifind(self, folderToScanPath=os.getcwdu(), addFolders=False):
         """
         Like `find()` but iterates over `folderToScanPath` instead of returning a list of paths.
         """
         assert folderToScanPath is not None
-        for relativePath in self._findInFolder(folderToScanPath, [], "", addFolders):
+        for relativePath in self._findInFolder(folderToScanPath, addFolders):
             if relativePath.startswith(os.sep):
                 assert not relativePath.startswith(os.sep), "relativePath=%r" % relativePath
             yield relativePath
