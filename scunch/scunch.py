@@ -615,8 +615,18 @@ _log = logging.getLogger("scunch")
 _consoleEncoding = None
 _consoleNormalization = None
 
-# TODO: 'purge'
-_ValidAfterActions = set(['commit', 'none', 'purge'])
+class _Actions(object):
+    """
+    Pseudo class to collect possible actions for ``--before`` and ``--after``.
+    """
+    # TODO: #10: Checkout = 'checkout'
+    # TODO: #10: Clean = 'clean'
+    Commit = 'commit'
+    None_ = 'none'
+    # TODO: #11: Purge = 'purge'
+    # TODO: #10: Update = 'update'
+    
+_ValidAfterActions = set([_Actions.Commit, _Actions.None_])
 # TODO: #10: _ValidBeforeActions = set(['checkout', 'clean', 'none', 'update'])
 _ValidConsoleNormalizations = set(['auto', 'nfc', 'nfkc', 'nfd', 'nfkd'])
 
@@ -1595,7 +1605,7 @@ def parsedOptions(arguments):
 
     parser = optparse.OptionParser(usage=_Usage, description=_Description, version="%prog " + __version__)
     punchGroup = optparse.OptionGroup(parser, u"Punching options")
-    punchGroup.add_option("-a", "--after", default='none', dest="actionsToPerformAfterPunching", metavar="ACTION", help=u'action(s) to perform after punching (default: "%default")')
+    punchGroup.add_option("-a", "--after", default=_Actions.None_, dest="actionsToPerformAfterPunching", metavar="ACTION", help=u'action(s) to perform after punching (default: "%default")')
     # TODO: punchGroup.add_option("-b", "--before", default='none', dest="actionsToPerformBeforePunching", metavar="ACTION", help=u'action(s) to perform before punching (default: "%default")')
     punchGroup.add_option("-i", "--include", dest="includePattern", metavar="PATTERN", help=u'ant pattern for file to include (default: all files)')
     punchGroup.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help=u'text for commit message (default: "%default")')
@@ -1668,10 +1678,10 @@ def main(arguments=None):
         # Perform actions after punching.
         for action in actionsToPerformAfterPunching:
             assert action in _ValidAfterActions
-            if action == 'commit':
+            if action == _Actions.Commit:
                 scmWork.commit("", options.commitMessage)
             else:
-                assert action == 'none'
+                assert action == _Actions.None_
                 
         exitCode = 0
     except (EnvironmentError, ScmError), error:
