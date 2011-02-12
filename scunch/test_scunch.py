@@ -232,15 +232,58 @@ class ScunchTest(_SvnTest):
         self.setUpProject("mainWithImplicitWork")
         scmWork = self.scmWork
 
-        testScunchWithClonePath = self.createTestFolder("testMainWithImplicitWork")
-        scmWork.exportTo(testScunchWithClonePath, clear=True)
+        testScunchWithImplicitWorkPath = self.createTestFolder("testMainWithImplicitWork")
+        scmWork.exportTo(testScunchWithImplicitWorkPath, clear=True)
         
         implicitWorkPath = scmWork.absolutePath("implicit work folder", "")
         # Assertion to make sure that major screw ups will not destroy scunch's source code.
         queriedWorkName = os.path.basename(os.path.dirname(implicitWorkPath))
         self.assertTrue(queriedWorkName == "mainWithImplicitWork", "queriedWorkName=%r, implicitWorkPath=%r" % (queriedWorkName, implicitWorkPath))
         
-        self._testMain([testScunchWithClonePath], implicitWorkPath)
+        self._testMain([testScunchWithImplicitWorkPath], implicitWorkPath)
+
+    def testMainWithWorkOnlyPattern(self):
+        self.setUpProject("mainWithWorkOnlyPattern")
+        scmWork = self.scmWork
+
+        testScunchWithWorkOnlyPatternPath = self.createTestFolder("testMainWorkOnlyPattern")
+        scmWork.exportTo(testScunchWithWorkOnlyPatternPath, clear=True)
+        
+        workOnlyPath = scmWork.absolutePath("work only folder", "")
+        makefilePath = os.path.join(workOnlyPath, "Makefile")
+        self.writeTextFile(makefilePath, ["# Dummy Makefile that could call scunch and what not."])
+        
+        self._testMain(["--work-only", "Makefile", testScunchWithWorkOnlyPatternPath], workOnlyPath)
+        self.assertTrue(os.path.exists(makefilePath))
+
+        # Try again, but this time without ``--work-only``.
+        self._testMain([testScunchWithWorkOnlyPatternPath], workOnlyPath)
+        self.assertFalse(os.path.exists(makefilePath))
+
+    def testMainWithIncludeAndExcludePattern(self):
+        self.setUpProject("mainWithIncludeAndExcludePattern")
+        scmWork = self.scmWork
+
+        testScunchWithIncludeAndExcludePatternPath = self.createTestFolder("testMainIncludeAndExcludePattern")
+        scmWork.exportTo(testScunchWithIncludeAndExcludePatternPath, clear=True)
+        
+        workFolderPath = scmWork.absolutePath("work folder", "")
+        helloPyWorkPath = scmWork.absolutePath("included Python source file", "hello.py")
+        self.assertTrue(os.path.getsize(helloPyWorkPath))
+        whilePyWorkPath = scmWork.absolutePath("excluded Python source file", os.path.join("loops", "while.py"))
+        self.assertTrue(os.path.exists(whilePyWorkPath))
+
+        # Clear included file in work copy to test that it will be transferred again with content.
+        with open(helloPyWorkPath, "wb"):
+            pass
+        self.assertEqual(os.path.getsize(helloPyWorkPath), 0)
+        
+        # Remove excluded file from work copy to make sure that it will not be transferred.
+        os.remove(whilePyWorkPath)
+        
+        self._testMain(["--include", "**/*.py", "--exclude", "loops/while.py", testScunchWithIncludeAndExcludePatternPath], workFolderPath)
+        self.assertTrue(os.path.getsize(helloPyWorkPath))
+        self.assertFalse(os.path.exists(whilePyWorkPath))
 
 class ScmPuncherTest(_SvnTest):
     """

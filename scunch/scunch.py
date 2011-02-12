@@ -16,7 +16,7 @@ Intended scenarios of use are:
   resources such as server configuration files.
 * Migration of projects using folder based version management to a proper
   SCM.
-  
+
 .. TODO: Elaborate the below scenario.
 .. Pseudo version management for users that have issues with manual version
 .. management (usual suspects are: managers, graphical artists, mainframe
@@ -74,7 +74,7 @@ To read a summary of the available options, run::
 
   $ scunch --help
 
-For more detailed usage in real world scenarios, read the section on 
+For more detailed usage in real world scenarios, read the section on
 "<Scenarios scenarios>_".
 
 Basic usage
@@ -104,6 +104,49 @@ To see a lot of details about the inner workings, use::
 Possible values for ``--log`` are: ``debug``, ``info`` (the default),
 ``warning`` and ``error``.
 
+
+Specifying which files to process
+---------------------------------
+
+By default, ``scunch`` considers almost all files and folders
+in the external folder for transfer, excluding:
+
+* internal files and folders used by popular SCM systems, for example
+  ``.svn`` and ``.gitignore``.
+* internal system files, for example MacOS X's ``.DS_Store``.
+* apparent temporary files, for example ``#*#``.
+
+To ignore additional files use ``--exclude=PATTERN`` with ``PATTERN`` using
+the popular `ant pattern syntax <http://ant.apache.org/manual/dirtasks.html>`_.
+Ant patters are similar to shell patterns and support the "*" and "?" place
+holder as usual. In addition to that, "**" stands for any amount of folders
+and sub folders matching any folder nesting level.
+
+For example, to exclude all Python byte code files, use::
+
+  $ scunch --exclude "**/*.pyc, **/*.pyo" ...
+
+In case you want to punch only Python and files and ignore everything
+else, use ``--include``::
+
+  $ scunch --include "**/*.py" ...
+
+Of course you can combine both options to for example punch all Python
+files except test cases::
+
+  $ scunch --include "**/*.py" --exclude "**/test_*.py" ...
+
+Sometimes the work copy includes files that will never exist in the
+external folder. For example, the work copy might contain a script
+to run ``scunch`` with all options set up already. Because this script
+does not exist in the external folder, it would be removed as soon as
+``scunch`` is run. To prevent this from happening, use
+``--work-only=PATTERN``. For example:
+
+  $ scunch --work-only "run_scunch.sh" ...
+
+Note that this example does not use the "**" place holder because only
+files in the work copy's top folder are of interest.
 
 Moving or renaming files
 ------------------------
@@ -243,7 +286,7 @@ Next he adds the project folders using the ``file`` protocol::
   $ svn mkdir file:///Users/tim/repositories/nifti/trunk  file:///Users/tim/repositories/nifti/tags  file:///Users/tim/repositories/nifti/branches
 
 No he can check out the ``trunk`` to a temporary folder::
-  
+
   $ cd /tmp
   $ svn checkout --username tim file:///Users/tim/repositories/nifti/trunk nifti
 
@@ -358,7 +401,7 @@ Next, Joe creates a yet empty work copy in a local folder on his computer::
 
 Now he copies all the files from the web server to the work copy::
 
-  $ cp -r /web/ohsome/* ~/projects/ohsome 
+  $ cp -r /web/ohsome/* ~/projects/ohsome
 
 Although the files are now in the work copy, the are not yet under version
 management. So Joe adds almost all the files except one folder named "temp" that
@@ -372,7 +415,7 @@ web application::
 After that, he manually commits the current state of the web server::
 
   $ svn commit --message "Added initial application version 1.3.7."
-  
+
 For the time being, Joe is done.
 
 A couple of weeks later, the vendor send a ZIP archive with the application
@@ -415,14 +458,14 @@ For instance, to find modified configuration files (matching the pattern \*.cfg)
 
 To get a list of Removed files and folders::
 
-  $ svn log --verbose --limit 1 http://svn.example.com/ohsome/trunk | grep "^   D" 
+  $ svn log --verbose --limit 1 http://svn.example.com/ohsome/trunk | grep "^   D"
 
 (Note: Here, ``grep`` looks for three blanks and a "D" for "deleted" at the beginning of a line.)
- 
- 
+
+
 .. Pseudo SCM for users with SCM issues
 .. ------------------------------------
-.. 
+..
 .. SCM in its current form approached the IT scene relatively late. Most
 .. concepts for operating systems and file management already have been
 .. established a long time ago. Consequently SCM has not been integrated well
@@ -430,7 +473,7 @@ To get a list of Removed files and folders::
 .. an integral part of it. Despite brave attempts like MULTICS, VMS, WebDAV
 .. and Desktop integrations like TortoiseSVN, version managements remains a
 .. mystery to many.
-.. 
+..
 .. Although software developers profit enough from SCM to take the effort
 .. learning to cope with them, people from other backgrounds keep stumbling
 .. over the various idiosyncrasies and usability issues modern SCM's offer.
@@ -440,10 +483,10 @@ To get a list of Removed files and folders::
 .. decided that the know everything they need to know about computers and can
 .. safely ignore everything that happened after the Disco movement (for
 .. instance mainframe elders).
-.. 
+..
 .. Continuous attempts to get such people to use an SCM only result in
 .. increased frustration and waste of time for everybody involved.
-.. 
+..
 .. TODO: Describe solution.
 
 
@@ -469,17 +512,25 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Version history
 ===============
 
-**Version 0.5.0, 16-Jan-2001**
+**Version 0.5.0, 2011-02-12**
 
+* #12: Added options ``--include`` and ``--exclude`` to specify which
+  files in the external folder should be punched. These options take a
+  list of ant patterns separated by a comma (,) or blank space.
+* #13: Added option ``--work-only`` to specify files and folders that
+  only exist in the work copy but not in the external folder but should be
+  preserved nevertheless. This is useful if the work copy contains helper
+  scripts, ``build.xml`` for ant, Makefiles and so on that call scunch or
+  other tools but will never be part of the external folder.
 * Changed ``--text`` to use ant-like pattern instead of a suffix list. For
   example now use ``--text="**/*.txt" instead of ``text=txt``.
 
-**Version 0.4.1, 09-Jan-2001**
+**Version 0.4.1, 2011-01-09**
 
 * Fixed ``AssertionError`` if no explicit ``--encoding`` was specified.
 * Cleaned up command line help and code.
 
-**Version 0.4, 08-Jan-2011**
+**Version 0.4, 2011-01-08**
 
 Added options to normalize text files and fixed some critical bugs.
 
@@ -496,14 +547,14 @@ Added options to normalize text files and fixed some critical bugs.
 * Fixed processing of internal file name diff sequences of type 'replace',
   which could result in inconsistent work copies.
 
-**Version 0.3, 05-Jan-2011**
+**Version 0.3, 2011-01-05**
 
 * Fixed processing of file names with non ASCII characters for Mac OS X
   and possibly other platforms.
 * Added command lines options ``--encoding`` and ``--normalize`` to
   specify how to deal with non ASCII characters.
 
-**Version 0.2, 04-Jan-2011**
+**Version 0.2, 2011-01-04**
 
 * Fixed ``NotImplementedError``.
 * Added support for moving files with same name instead of performing a
@@ -511,7 +562,7 @@ Added options to normalize text files and fixed some critical bugs.
   Use ``--move=none`` to get the old behavior.
 * Cleaned up logging output.
 
-**Version 0.1, 03-Jan-2011**
+**Version 0.1, 2011-01-03**
 
 * Initial release.
 """
@@ -565,11 +616,11 @@ def _setUpLogging(level=logging.INFO):
     """
     assert level is not None
     logging.basicConfig(level=level)
-    
+
 def _setUpEncoding(consoleEncoding='auto', consoleNormalization='auto'):
     """
     * consoleEncoding - the encoding used by shell commands when writing to ``stdout``.
-    
+
     * consoleNormalization - Unicode normalization for console output which in turn decides the
       normalization of file names. For Mac OS X HFS, this is "NFD". See Technical Q&A QA1173,
       "Text Encodings in VFS", available from
@@ -581,7 +632,7 @@ def _setUpEncoding(consoleEncoding='auto', consoleNormalization='auto'):
     # TODO: #9: Redesign console encoding to get rid of ugly globals.
     global _consoleEncoding
     global _consoleNormalization
-    
+
     if consoleEncoding == 'auto':
         _consoleEncoding = locale.getpreferredencoding()
     else:
@@ -600,7 +651,7 @@ def _setUpEncoding(consoleEncoding='auto', consoleNormalization='auto'):
         _log.warning("LC_CTYPE should be set to for example 'en_US;UTF-8' to allow processing of file names with non-ASCII characters")
     sys.stdout = codecs.getwriter(_consoleEncoding)(sys.stdout)
     sys.stdin = codecs.getreader(_consoleEncoding)(sys.stdin)
-    
+
 def _humanReadableCommand(commandAndOptions):
     result = ""
     isFirstItem = True
@@ -684,7 +735,7 @@ class ScmStatus(object):
     Removed = "deleted"
     Replaced = "replaced"
     Unversioned = "unversioned"
-    
+
     _CleanStati = set([External, Ignored, None_, Normal])
     _ModifiedStati = set([Added, Merged, Modified, Removed])
     _CommitableStati = _CleanStati | _ModifiedStati
@@ -716,9 +767,9 @@ class ScmStatus(object):
         self.propertiesStatus = None
 
     def _bothStatIn(self, possibleStati):
-        result = (self.status in possibleStati) and (self.propertiesStatus in possibleStati) 
+        result = (self.status in possibleStati) and (self.propertiesStatus in possibleStati)
         return result
-    
+
     def isClean(self):
         return self._bothStatIn(ScmStatus._CleanStati)
 
@@ -730,7 +781,7 @@ class ScmStatus(object):
 
     def __unicode__(self):
         return u"%s:%s,%s" % (self.path, self.status, self.propertiesStatus)
-        
+
     def __str__(self):
         return unicode(self).encode('utf-8')
 
@@ -807,12 +858,12 @@ class ScmStorage(object):
                 hasValidProtocoll = True
         if not hasValidProtocoll:
             raise ScmError("%s must start with one of %s but is: %s", (name, str(ValidProtocols), qualifierToCheck))
-            
+
     def checkRelativeQualifier(self, name, qualifierToCheck):
         assert name
         if qualifierToCheck is None:
             raise ScmError("%s must not be None" % name)
-            
+
     def absoluteQualifier(self, relativeQualifier):
         self.checkRelativeQualifier("internal qualifier", relativeQualifier)
         result = urlparse.urljoin(self.baseQualifier, relativeQualifier)
@@ -828,19 +879,19 @@ class ScmStorage(object):
         for actualRelativeQualifierToCreate in actualRelativeQualifiers:
             result.append(self.absoluteQualifier(actualRelativeQualifierToCreate))
         return result
- 
+
     def mkdir(self, relativeQualifiersToCreate, message):
         scmCommand = ["svn", "mkdir"]
         if message:
             scmCommand.extend(["--message", message])
-        scmCommand.extend(self.absoluteQualifiers(relativeQualifiersToCreate)) 
+        scmCommand.extend(self.absoluteQualifiers(relativeQualifiersToCreate))
         run(scmCommand)
 
 def _sortedFileSystemEntries(folderItemsToSort):
     def comparedFileSystemEntries(some, other):
         assert some is not None
         assert other is not None
-        
+
         # Sort folders before files, hence '-'.
         typeComparison = -cmp(some.kind, other.kind)
         if typeComparison:
@@ -896,7 +947,7 @@ class TextOptions(object):
     Options describing how to convert punched text files.
     """
 
-    # Special tab size indicating that tabs should be preserved.    
+    # Special tab size indicating that tabs should be preserved.
     PreserveTabs = 0
 
     # Possible values for property ``newLine``..
@@ -937,7 +988,7 @@ class TextOptions(object):
         else:
             result = False
         return result
-    
+
     def convertedLine(self, line):
         """
         Similar to ``line`` but with the conversion decribed by this `TextOptions` applied.
@@ -952,10 +1003,10 @@ class TextOptions(object):
 
     def __unicode__(self):
         return u"<TextOptions: newLine=%r, charactersToStrip=%r, tabSize=%d, texts=%s>" % (self.newLine, self._trailingCharactersToStrip, self.tabSize, self.textPatternSet)
-        
+
     def __str__(self):
         return unicode(self).encode('utf-8')
-    
+
     def __repr__(self):
         return self.__str__()
 
@@ -964,7 +1015,7 @@ class ScmPuncher(object):
     """
     Puncher to update a work copy according from a folder performing the following changes on the
     work copy:
-    
+
     * Add files that do not exist in the work copy but the folder.
     * Remove files that exist in the work copy but not the folder.
     * Copy other files that exist in both from the folder to the work copy.
@@ -1011,7 +1062,7 @@ class ScmPuncher(object):
     def _assertScheduledItemIsUnique(self, itemToSchedule, operation):
         """
         Assert that a folder item ``itemToSchedule` scheduled for ``operation`` has not been
-        scheduled for any other operation so far. 
+        scheduled for any other operation so far.
         """
         assert itemToSchedule is not None
         assert operation in ('add', 'copy', 'move', 'remove', 'transfer')
@@ -1039,7 +1090,7 @@ class ScmPuncher(object):
                 self._removedItems.append(itemToRemove)
             else:
                 _log.debug('skip removed item in removed folder: "%s"', itemToRemove.relativePath)
-    
+
     def _transfer(self, items):
         for itemToTransfer in items:
             if not self._isInLastRemovedFolder(itemToTransfer):
@@ -1085,7 +1136,7 @@ class ScmPuncher(object):
         self.externalItems = _sortedFileSystemEntries(self.externalItems)
         _log.info('found %d external items in "%s"', len(self.externalItems), self._externalFolderPath)
 
-        # Check that external items do contain any work only items.
+        # Check that external items do not contain any work only items.
         if workOnlyPatternText:
             workFilesToPreservePatternSet = antglob.AntPatternSet(False)
             workFilesToPreservePatternSet.include(workOnlyPatternText)
@@ -1102,7 +1153,7 @@ class ScmPuncher(object):
         _log.info('found %d work items in "%s"', len(self.workItems), self.scmWork.absolutePath("work path", relativeWorkFolderPath))
         for item in self.workItems:
             _log.debug('  %s', item)
-        
+
     def _setAddedModifiedRemovedItems(self):
         assert self._externalFolderPath is not None
         assert self.workItems is not None
@@ -1154,7 +1205,7 @@ class ScmPuncher(object):
             else:
                 existingItems.append(item)
         return result
-            
+
     def _setCopiedAndMovedItems(self):
         assert self._externalFolderPath is not None
         assert self.workItems is not None
@@ -1164,7 +1215,7 @@ class ScmPuncher(object):
         self._movedItems = []
         removedNameMap = self._createNameAndKindToListOfFolderItemsMap(self._removedItems)
         addedNameMap = self._createNameAndKindToListOfFolderItemsMap(self._addedItems)
-        
+
         for possiblyMovedItemKey, possiblyMovedItems in addedNameMap.items():
             possiblyMovedItemKind = possiblyMovedItemKey[1]
             correspondingRemovedItems = removedNameMap.get(possiblyMovedItemKey)
@@ -1180,7 +1231,7 @@ class ScmPuncher(object):
                 else:
                     # TODO: Move folders in case the new folder contains all the item from the old folder (and possibly some more).
                     pass
-        
+
     def _applyChangedItems(self, textOptions):
         _log.info("punch modifications into work copy")
         if self._removedItems:
@@ -1259,7 +1310,7 @@ class ScmWork(object):
         hasExistingWork = os.path.exists(self.localTargetPath)
         if hasExistingWork and (checkOutAction == ScmWork.CheckOutActionReset):
             self.clear()
-        
+
         if checkOutAction in (ScmWork.CheckOutActionCreate, ScmWork.CheckOutActionReset):
             self.checkout()
         elif checkOutAction == ScmWork.CheckOutActionUpdate:
@@ -1275,7 +1326,7 @@ class ScmWork(object):
         """
         _log.info("remove work copy at \"%s\"", self.localTargetPath)
         _tools.removeFolder(self.localTargetPath)
-        
+
     def checkout(self):
         _log.info("check out work copy at \"%s\"", self.localTargetPath)
         scmCommand = ["svn", "checkout", self.baseWorkQualifier, self.localTargetPath]
@@ -1374,7 +1425,7 @@ class ScmWork(object):
         svnCommitCommand.extend(["--message", message])
         svnCommitCommand.extend(self.absolutePaths("paths to commit", relativePathsToCommit))
         run(svnCommitCommand, cwd=self.localTargetPath)
-        
+
     def isSpecialPath(self, path):
         name = os.path.basename(path)
         return self.specialPathPatternSet.matches(name)
@@ -1483,7 +1534,7 @@ def listRelativePaths(folderToListPath, elements=[]):
 def scunch(sourceFolderPath, scmWork, textOptions=None, move=ScmPuncher.MoveName, includePatternText=None, excludePatternText=None, workOnlyPatternText=None):
     assert sourceFolderPath is not None
     puncher = ScmPuncher(scmWork)
-    puncher.punch(sourceFolderPath, "", textOptions, move=move)
+    puncher.punch(sourceFolderPath, "", textOptions, move=move, includePatternText=includePatternText, excludePatternText=excludePatternText, workOnlyPatternText=workOnlyPatternText)
 
 _NameToLogLevelMap = {
     'debug': logging.DEBUG,
@@ -1504,7 +1555,7 @@ def _createTextOptions(commandLineOptions):
     assert commandLineOptions is not None
     assert commandLineOptions.tabSize is not None
     assert commandLineOptions.tabSize >= 0
-    assert commandLineOptions.newLine in _NameToNewLineMap.keys(), 'newLine=%r' % commandLineOptions.newLine 
+    assert commandLineOptions.newLine in _NameToNewLineMap.keys(), 'newLine=%r' % commandLineOptions.newLine
 
     result = TextOptions(
         commandLineOptions.textPatternSet,
@@ -1566,7 +1617,7 @@ def parsedOptions(arguments):
         parser.error("unrecognized options must be removed: %s" % others[2:])
 
     return (options, sourceFolderPath, workFolderPath)
-    
+
 def main(arguments=None):
     if arguments == None:
         actualArguments = sys.argv
@@ -1575,7 +1626,6 @@ def main(arguments=None):
 
     # Parse and validate command line options.
     options, sourceFolderPath, workFolderPath = parsedOptions(actualArguments)
-    print options
 
     # Set up logging and encoding.
     _setUpLogging(_NameToLogLevelMap[options.logLevel])
