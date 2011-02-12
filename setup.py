@@ -41,12 +41,15 @@ setup(
     version=scunch.__version__,
     packages=["scunch"],
     description="Update svn working copy from folder.",
+    install_requires=[
+        "nose>=1.0"
+    ],
     entry_points = {
         'console_scripts': [
             'scunch = scunch.scunch:main'
         ],
     },
-    test_suite = "scunch.test_scunch",
+    test_suite = "nose.collector",
     keywords="svn scm version import apply copy transfer punch working work",
     author="Thomas Aglassinger",
     author_email="roskakori@users.sourceforge.net",
