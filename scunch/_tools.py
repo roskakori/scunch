@@ -45,4 +45,27 @@ def removeFolder(folderPathToRemove):
 def makeEmptyFolder(folderPathToCreate):
     removeFolder(folderPathToCreate)
     makeFolder(folderPathToCreate)
-        
+
+def humanReadableList(items):
+    """
+    All values in ``items`` in a human readable form. This is meant to be used in error messages, where
+    dumping "%r" to the user does not cut it.
+    """
+    assert items is not None
+    listItems = list(items)
+    itemCount = len(listItems)
+    if itemCount == 0:
+        result = ""
+    elif itemCount == 1:
+        result = "%r" % listItems[0]
+    else:
+        result = ""
+        for itemIndex in range(itemCount):
+            if itemIndex == itemCount - 1:
+                result += " or "
+            elif itemIndex > 0:
+                result += ", "
+            result += "%r" % listItems[itemIndex]
+        assert result
+    assert result is not None
+    return result

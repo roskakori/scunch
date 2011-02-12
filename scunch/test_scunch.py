@@ -228,6 +228,9 @@ class ScunchTest(_SvnTest):
     def testMainBrokenOption(self):
         self._testMainWithSystemExit(["--no-such-option"], 2)
 
+    def testMainBrokenAfterAction(self):
+        self._testMainWithSystemExit(["--after", "broken", "external_folder", "work_folder"], 2)
+
     def testMainWithImplicitWork(self):
         self.setUpProject("mainWithImplicitWork")
         scmWork = self.scmWork
@@ -284,6 +287,22 @@ class ScunchTest(_SvnTest):
         self._testMain(["--include", "**/*.py", "--exclude", "loops/while.py", testScunchWithIncludeAndExcludePatternPath], workFolderPath)
         self.assertTrue(os.path.getsize(helloPyWorkPath))
         self.assertFalse(os.path.exists(whilePyWorkPath))
+
+    def testMainWithCommit(self):
+        self.setUpProject("mainWithComit")
+        scmWork = self.scmWork
+
+        testScunchWithWorkOnlyPatternPath = self.createTestFolder("testMainWithCommit")
+        scmWork.exportTo(testScunchWithWorkOnlyPatternPath, clear=True)
+        
+        workFolderPath = scmWork.absolutePath("work folder", "")
+        workReadmeTxtPath = self.scmWork.absolutePath("test file path", "ReadMe.txt")
+        externalReadmeTxtPath = os.path.join(testScunchWithWorkOnlyPatternPath, "ReadMe.txt")
+        os.remove(externalReadmeTxtPath)
+
+        self._testMain(["--after", "commit", testScunchWithWorkOnlyPatternPath, workFolderPath])
+        self.assertNonNormalStatus({})
+        self.assertFalse(os.path.exists(workReadmeTxtPath))
 
 class ScmPuncherTest(_SvnTest):
     """

@@ -49,7 +49,7 @@ If you prefer a manual installation, you can obtain the ZIP archive from
 <http://pypi.python.org/pypi/scunch/>.  Furthermore the source code is
 available from <https://github.com/roskakori/scunch>.
 
-To actually use ``scunch``, you need also need an SCM tool. In particular,
+To actually use ``scunch``, you lso need an SCM tool. In particular,
 you need the SCM's command line client to be installed and located in the
 shell's search path. Installing a desktop plug-in such as `TortoiseSVN
 <http://tortoisesvn.tigris.org/>`_ is not enough because it does not
@@ -512,6 +512,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Version history
 ===============
 
+**Version 0.5.1, 2011-02-xx**
+
+* Added command line option ``--after`` to specify actions to be taken
+  after punching.
+* Removed command line option ``--commit``, use ``--after=commit``
+  instead.
+
 **Version 0.5.0, 2011-02-12**
 
 * #12: Added options ``--include`` and ``--exclude`` to specify which
@@ -600,7 +607,7 @@ from xml.sax.handler import ContentHandler
 import antglob
 import _tools
 
-__version_info__ = (0, 5, 0)
+__version_info__ = (0, 5, 1)
 __version__ = '.'.join(unicode(item) for item in __version_info__)
 
 _log = logging.getLogger("scunch")
@@ -608,11 +615,14 @@ _log = logging.getLogger("scunch")
 _consoleEncoding = None
 _consoleNormalization = None
 
+# TODO: 'purge'
+_ValidAfterActions = set(['commit', 'none', 'purge'])
+# TODO: #10: _ValidBeforeActions = set(['checkout', 'clean', 'none', 'update'])
 _ValidConsoleNormalizations = set(['auto', 'nfc', 'nfkc', 'nfd', 'nfkd'])
 
 def _setUpLogging(level=logging.INFO):
     """
-    * level - the minimum logging level to log.
+    Set up logging with ``level`` being the initial minimum logging level.
     """
     assert level is not None
     logging.basicConfig(level=level)
@@ -1568,12 +1578,25 @@ def _createTextOptions(commandLineOptions):
 _Usage = "%prog [options] FOLDER [WORK-FOLDER]"
 _Description = "Update svn work copy from folder applying add and remove."
 
+def _parsedActions(optionsParser, actionName, actionsText, validActions):
+    assert optionsParser
+    assert actionsText is not None
+    assert validActions
+    result = []
+    for action in actionsText.split(','):
+        action = action.strip()
+        if action not in validActions:
+            optionsParser.error("%s action %r must be changed to %s" % (actionName, action, _tools.humanReadableList(validActions)))
+        result.append(action)
+    return result
+
 def parsedOptions(arguments):
     assert arguments is not None
 
     parser = optparse.OptionParser(usage=_Usage, description=_Description, version="%prog " + __version__)
     punchGroup = optparse.OptionGroup(parser, u"Punching options")
-    punchGroup.add_option("-c", "--commit", action="store_true", dest="isCommit", help=u"after punching the changes into the work copy, commit them")
+    punchGroup.add_option("-a", "--after", default='none', dest="actionsToPerformAfterPunching", metavar="ACTION", help=u'action(s) to perform after punching (default: "%default")')
+    # TODO: punchGroup.add_option("-b", "--before", default='none', dest="actionsToPerformBeforePunching", metavar="ACTION", help=u'action(s) to perform before punching (default: "%default")')
     punchGroup.add_option("-i", "--include", dest="includePattern", metavar="PATTERN", help=u'ant pattern for file to include (default: all files)')
     punchGroup.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help=u'text for commit message (default: "%default")')
     punchGroup.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help=u'criteria to detect moved files (default: "%default")')
@@ -1615,8 +1638,8 @@ def parsedOptions(arguments):
         workFolderPath = others[1]
     else:
         parser.error("unrecognized options must be removed: %s" % others[2:])
-
-    return (options, sourceFolderPath, workFolderPath)
+    actionsToPerformAfterPunching = _parsedActions(parser, '--after', options.actionsToPerformAfterPunching, _ValidAfterActions)
+    return (options, sourceFolderPath, workFolderPath, actionsToPerformAfterPunching)
 
 def main(arguments=None):
     if arguments == None:
@@ -1625,7 +1648,7 @@ def main(arguments=None):
         actualArguments = arguments
 
     # Parse and validate command line options.
-    options, sourceFolderPath, workFolderPath = parsedOptions(actualArguments)
+    options, sourceFolderPath, workFolderPath, actionsToPerformAfterPunching = parsedOptions(actualArguments)
 
     # Set up logging and encoding.
     _setUpLogging(_NameToLogLevelMap[options.logLevel])
@@ -1636,9 +1659,20 @@ def main(arguments=None):
     try:
         scmWork = createScmWork(workFolderPath)
         textOptions = _createTextOptions(options)
+        
+        # TODO: #10: Perform actions before punching. 
+
+        # Actually punch work copy.
         scunch(sourceFolderPath, scmWork, textOptions, move=options.moveMode, includePatternText=options.includePattern, excludePatternText=options.excludePattern, workOnlyPatternText=options.workOnlyPattern)
-        if options.isCommit:
-            scmWork.commit("", options.commitMessage)
+
+        # Perform actions after punching.
+        for action in actionsToPerformAfterPunching:
+            assert action in _ValidAfterActions
+            if action == 'commit':
+                scmWork.commit("", options.commitMessage)
+            else:
+                assert action == 'none'
+                
         exitCode = 0
     except (EnvironmentError, ScmError), error:
         _log.error("%s", error)
