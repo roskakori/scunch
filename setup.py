@@ -15,7 +15,7 @@ Upload release to PyPI::
 
 Tag a release::
 
-  $ git tag -a -m "Tagged version 0.x." 0.x
+  $ git tag -a -m "Tagged version 0.x.y." 0.x.y
   $ git push --tags
 """
 # Copyright (C) 2011 Thomas Aglassinger
@@ -47,7 +47,7 @@ setup(
         ],
     },
     test_suite = "scunch.test_scunch",
-    keywords="svn scm version import apply copy transfer punch working work copy",
+    keywords="svn scm version import apply copy transfer punch working work",
     author="Thomas Aglassinger",
     author_email="roskakori@users.sourceforge.net",
     url="http://pypi.python.org/pypi/scunch/",
