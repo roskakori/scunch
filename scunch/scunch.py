@@ -859,7 +859,6 @@ class _SvnStatusContentHandler(ContentHandler):
             raise ScmError("cannot process unknown status: %r" % svnStatus)
         if result == ScmStatus.None_:
             result = None
-        # TODO: Remove: _log.debug("  status: svn=%r --> %r", svnStatus, result)
         return result
 
     def startElement(self, name, attributes):
@@ -963,41 +962,6 @@ def _sortedFileSystemEntries(folderItemsToSort):
         result.append(item)
     result = sorted(result, comparedFileSystemEntries)
     return result
-
-# TODO: Remove dead code.
-def ___listFolderItems(baseFolderPath, baseFolderItem, patternSetToMatch):
-    """
-    List of folder items starting with ``baseFolderPath`` joined according to the path parts
-    of ``baseFolderItem``.
-    """
-    assert baseFolderItem.kind == antglob.FileSystemEntry.Folder
-    folderPath = baseFolderItem.absolutePath(baseFolderPath)
-    _log.debug("  scan: %s", folderPath)
-    for itemName in os.listdir(folderPath):
-        item = antglob.FileSystemEntry(baseFolderItem.parts, itemName, baseFolderPath)
-        if not patternSetToMatch or patternSetToMatch.matchesParts(item.parts):
-            yield item
-            if item.kind == antglob.FileSystemEntry.Folder:
-                for nestedItem in ___listFolderItems(baseFolderPath, item, patternSetToMatch):
-                    yield nestedItem
-        else:
-            _log.debug("  reject: %s", item)
-
-# TODO: Remove dead code.
-def __listFolderItems(folderPathToList, patternSetToMatch=None):
-    """
-    List of folder items starting with ``folderPathToList``.
-    """
-    item = antglob.FileSystemEntry(baseFolderPath=folderPathToList)
-    if item.kind != antglob.FileSystemEntry.Folder:
-        # Note: We could easily "yield" a file too. The current design just does not require this
-        # because a folder to punch cannot be meaningfully processed in case it is a file.
-        raise ScmError("path to list must be a folder: %r" % folderPathToList)
-    # TODO: Remove dead code below.
-    # if patternSetToMatch and not patternSetToMatch.matchesParts(item.parts):
-    #     raise ScmError("folder to list must be acceptable: %r" % folderPathToList)
-    for nestedItem in ___listFolderItems(folderPathToList, item, patternSetToMatch):
-        yield nestedItem
 
 class TextOptions(object):
     """
@@ -1377,13 +1341,6 @@ class ScmWork(object):
         self.specialPathPatternSet = antglob.AntPatternSet(False)
         self.specialPathPatternSet.include("**/.svn, **/_svn")
 
-    def clear(self):
-        """
-        Remove work copy folder and all its contents.
-        """
-        _log.info("remove work copy at \"%s\"", self.localTargetPath)
-        _tools.removeFolder(self.localTargetPath)
-
     def checkout(self, purge=False):
         """
         Check out a work copy to ``localTargetPath``.
@@ -1396,10 +1353,10 @@ class ScmWork(object):
 
     def purge(self, ignoreErrors=False):
         """
-        Remove the local work folder and all its contents.
+        Remove work copy folder and all its contents.
         """
         _log.info("purge work copy at \"%s\"", self.localTargetPath)
-        shutil.rmtree(self.localTargetPath, ignoreErrors)
+        _tools.removeFolder(self.localTargetPath)
 
     def update(self, relativePathToUpdate=""):
         _log.info("update out work copy at \"%s\"", self.localTargetPath)
