@@ -163,6 +163,12 @@ class BasicTest(_SvnTest):
         scmWork.commit("", "Added file with umlauts in name.")
         self.assertNonNormalStatus({})
 
+    def testPurge(self):
+        self.setUpProject("testPurge")
+        self.assertTrue(os.path.exists(self.scmWork.localTargetPath))
+        self.scmWork.purge()
+        self.assertFalse(os.path.exists(self.scmWork.localTargetPath))
+        
 class ScunchTest(_SvnTest):
     """
     TestCase for `scunch.scunch()`.
@@ -303,6 +309,17 @@ class ScunchTest(_SvnTest):
         self._testMain(["--after", "commit", testScunchWithWorkOnlyPatternPath, workFolderPath])
         self.assertNonNormalStatus({})
         self.assertFalse(os.path.exists(workReadmeTxtPath))
+
+    def testMainWithPurge(self):
+        self.setUpProject("mainWithPurge")
+        scmWork = self.scmWork
+
+        testScunchWithPurgePath = self.createTestFolder("testMainWithPurge")
+        scmWork.exportTo(testScunchWithPurgePath, clear=True)
+        
+        self.assertTrue(os.path.exists(scmWork.localTargetPath))
+        self._testMain(["--after", "purge", testScunchWithPurgePath, scmWork.localTargetPath])
+        self.assertFalse(os.path.exists(scmWork.localTargetPath))
 
 class ScmPuncherTest(_SvnTest):
     """

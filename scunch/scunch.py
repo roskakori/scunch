@@ -141,12 +141,37 @@ external folder. For example, the work copy might contain a script
 to run ``scunch`` with all options set up already. Because this script
 does not exist in the external folder, it would be removed as soon as
 ``scunch`` is run. To prevent this from happening, use
-``--work-only=PATTERN``. For example:
+``--work-only=PATTERN``. For example::
 
   $ scunch --work-only "run_scunch.sh" ...
 
 Note that this example does not use the "**" place holder because only
 files in the work copy's top folder are of interest.
+
+
+Committing punched changes
+--------------------------
+
+To automatically commit the changes ``scunch`` just punched into your work
+copy, use::
+
+  $ scunch --after commit ...
+
+To do the same with a meaningful log message, use::
+
+  $ scunch --after commit --message "Punched changes for 2011/02." ...
+
+In case you use a script to launch ``scunch`` and want to get rid of the
+work copy once it is done, you can specify multiple actions for ``--after``
+separated by a comma::
+
+  $ scunch --after "commit, purge" ...
+
+The actions are performed in the given order so make sure to use ``purge``
+last. Also notice the double quotes (") around ``"commit, purge"``. They
+ensure that the shell does not consider ``purge`` a command line option of
+its own.
+ 
 
 Moving or renaming files
 ------------------------
@@ -623,10 +648,10 @@ class _Actions(object):
     # TODO: #10: Clean = 'clean'
     Commit = 'commit'
     None_ = 'none'
-    # TODO: #11: Purge = 'purge'
+    Purge = 'purge'
     # TODO: #10: Update = 'update'
     
-_ValidAfterActions = set([_Actions.Commit, _Actions.None_])
+_ValidAfterActions = set([_Actions.Commit, _Actions.None_, _Actions.Purge])
 # TODO: #10: _ValidBeforeActions = set(['checkout', 'clean', 'none', 'update'])
 _ValidConsoleNormalizations = set(['auto', 'nfc', 'nfkc', 'nfd', 'nfkd'])
 
@@ -1347,10 +1372,22 @@ class ScmWork(object):
         _log.info("remove work copy at \"%s\"", self.localTargetPath)
         _tools.removeFolder(self.localTargetPath)
 
-    def checkout(self):
+    def checkout(self, purge=False):
+        """
+        Check out a work copy to ``localTargetPath``.
+        """
         _log.info("check out work copy at \"%s\"", self.localTargetPath)
+        if purge and os.path.exists(self.localTargetPath):
+            self.purge()
         scmCommand = ["svn", "checkout", self.baseWorkQualifier, self.localTargetPath]
         run(scmCommand)
+
+    def purge(self, ignoreErrors=False):
+        """
+        Remove the local work folder and all its contents.
+        """
+        _log.info("purge work copy at \"%s\"", self.localTargetPath)
+        shutil.rmtree(self.localTargetPath, ignoreErrors)
 
     def update(self, relativePathToUpdate=""):
         _log.info("update out work copy at \"%s\"", self.localTargetPath)
@@ -1648,7 +1685,20 @@ def parsedOptions(arguments):
         workFolderPath = others[1]
     else:
         parser.error("unrecognized options must be removed: %s" % others[2:])
+
+    # Validate actions for option ``--after``.
     actionsToPerformAfterPunching = _parsedActions(parser, '--after', options.actionsToPerformAfterPunching, _ValidAfterActions)
+    actionsFoundSoFar = set()
+    foundPurgeAction = False
+    for action in actionsToPerformAfterPunching:
+        if action in actionsFoundSoFar:
+            parser.error("option --after must contain action %r only once but is: %s" % (action, options.actionsToPerformAfterPunching))
+        if action == _Actions.Purge:
+            assert not foundPurgeAction
+            foundPurgeAction = True
+        elif foundPurgeAction:
+            parser.error("action %r in option --after must appear before action %r but is: %s" % (action, _Actions.Purge, options.actionsToPerformAfterPunching))
+            
     return (options, sourceFolderPath, workFolderPath, actionsToPerformAfterPunching)
 
 def main(arguments=None):
@@ -1680,6 +1730,8 @@ def main(arguments=None):
             assert action in _ValidAfterActions
             if action == _Actions.Commit:
                 scmWork.commit("", options.commitMessage)
+            elif action == _Actions.Purge:
+                scmWork.purge()
             else:
                 assert action == _Actions.None_
                 
