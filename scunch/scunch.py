@@ -86,7 +86,7 @@ To "punch" the folder ``/tmp/ohsome`` into the work copy ``~/projects/ohsome``, 
 
 To do the same but also commit the changes, run::
 
-  $ scunch --commit --message "Punched version 1.3.8." /tmp/ohsome ~/projects/ohsome
+  $ scunch --after=commit --message "Punched version 1.3.8." /tmp/ohsome ~/projects/ohsome
 
 
 Controlling the output
@@ -148,6 +148,18 @@ does not exist in the external folder, it would be removed as soon as
 Note that this example does not use the "**" place holder because only
 files in the work copy's top folder are of interest.
 
+Preparing the work copy
+-----------------------
+
+To prepare the work copy use ``--before``. By default, ``scunch`` does not
+do anything to the work copy. This might confuse ``scunch`` in case there
+are files missing or files have yet to be added and committed. In case the
+repository already contains a new version, conflicts might ensue.
+
+To make sure the work copy contains the most current version, use::
+ 
+  $ scunch --before update ...
+
 
 Committing punched changes
 --------------------------
@@ -159,7 +171,7 @@ copy, use::
 
 To do the same with a meaningful log message, use::
 
-  $ scunch --after commit --message "Punched changes for 2011/02." ...
+  $ scunch --after commit --message "Punched version 1.3.8." ...
 
 In case you use a script to launch ``scunch`` and want to get rid of the
 work copy once it is done, you can specify multiple actions for ``--after``
@@ -233,7 +245,7 @@ systems, the following command should do the trick::
 
   $ export LC_CTYPE=en_US;UTF-8
 
-For Windows 7 so can use::
+For Windows 7 you can use::
 
   > set LC_CTYPE=en_US;UTF-8
 
@@ -649,10 +661,10 @@ class _Actions(object):
     Commit = 'commit'
     None_ = 'none'
     Purge = 'purge'
-    # TODO: #10: Update = 'update'
+    Update = 'update'
     
 _ValidAfterActions = set([_Actions.Commit, _Actions.None_, _Actions.Purge])
-# TODO: #10: _ValidBeforeActions = set(['checkout', 'clean', 'none', 'update'])
+_ValidBeforeActions = set([_Actions.None_, _Actions.Update])
 _ValidConsoleNormalizations = set(['auto', 'nfc', 'nfkc', 'nfd', 'nfkd'])
 
 def _setUpLogging(level=logging.INFO):
@@ -1630,8 +1642,12 @@ def _parsedActions(optionsParser, actionName, actionsText, validActions):
     assert actionsText is not None
     assert validActions
     result = []
+    actionsFoundSoFar = set()
     for action in actionsText.split(','):
         action = action.strip()
+        if action in actionsFoundSoFar:
+            optionsParser.error("option %s must contain action %r only once but is: %s" % (actionName, action, actionsText))
+        actionsFoundSoFar.update([action])
         if action not in validActions:
             optionsParser.error("%s action %r must be changed to %s" % (actionName, action, _tools.humanReadableList(validActions)))
         result.append(action)
@@ -1643,7 +1659,7 @@ def parsedOptions(arguments):
     parser = optparse.OptionParser(usage=_Usage, description=_Description, version="%prog " + __version__)
     punchGroup = optparse.OptionGroup(parser, u"Punching options")
     punchGroup.add_option("-a", "--after", default=_Actions.None_, dest="actionsToPerformAfterPunching", metavar="ACTION", help=u'action(s) to perform after punching (default: "%default")')
-    # TODO: punchGroup.add_option("-b", "--before", default='none', dest="actionsToPerformBeforePunching", metavar="ACTION", help=u'action(s) to perform before punching (default: "%default")')
+    punchGroup.add_option("-b", "--before", default='none', dest="actionsToPerformBeforePunching", metavar="ACTION", help=u'action(s) to perform before punching (default: "%default")')
     punchGroup.add_option("-i", "--include", dest="includePattern", metavar="PATTERN", help=u'ant pattern for file to include (default: all files)')
     punchGroup.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help=u'text for commit message (default: "%default")')
     punchGroup.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help=u'criteria to detect moved files (default: "%default")')
@@ -1686,20 +1702,20 @@ def parsedOptions(arguments):
     else:
         parser.error("unrecognized options must be removed: %s" % others[2:])
 
+    # Validate actions for option ``--before``.
+    actionsToPerformBeforePunching = _parsedActions(parser, '--before', options.actionsToPerformBeforePunching, _ValidBeforeActions)
+            
     # Validate actions for option ``--after``.
     actionsToPerformAfterPunching = _parsedActions(parser, '--after', options.actionsToPerformAfterPunching, _ValidAfterActions)
-    actionsFoundSoFar = set()
     foundPurgeAction = False
     for action in actionsToPerformAfterPunching:
-        if action in actionsFoundSoFar:
-            parser.error("option --after must contain action %r only once but is: %s" % (action, options.actionsToPerformAfterPunching))
         if action == _Actions.Purge:
             assert not foundPurgeAction
             foundPurgeAction = True
         elif foundPurgeAction:
             parser.error("action %r in option --after must appear before action %r but is: %s" % (action, _Actions.Purge, options.actionsToPerformAfterPunching))
             
-    return (options, sourceFolderPath, workFolderPath, actionsToPerformAfterPunching)
+    return (options, sourceFolderPath, workFolderPath, actionsToPerformBeforePunching, actionsToPerformAfterPunching)
 
 def main(arguments=None):
     if arguments == None:
@@ -1708,7 +1724,7 @@ def main(arguments=None):
         actualArguments = arguments
 
     # Parse and validate command line options.
-    options, sourceFolderPath, workFolderPath, actionsToPerformAfterPunching = parsedOptions(actualArguments)
+    options, sourceFolderPath, workFolderPath, actionsToPerformBeforePunching, actionsToPerformAfterPunching = parsedOptions(actualArguments)
 
     # Set up logging and encoding.
     _setUpLogging(_NameToLogLevelMap[options.logLevel])
@@ -1720,7 +1736,13 @@ def main(arguments=None):
         scmWork = createScmWork(workFolderPath)
         textOptions = _createTextOptions(options)
         
-        # TODO: #10: Perform actions before punching. 
+        # Perform actions before punching.
+        for action in actionsToPerformBeforePunching:
+            assert action in _ValidBeforeActions
+            if action == _Actions.Update:
+                scmWork.update()
+            else:
+                assert action == _Actions.None_
 
         # Actually punch work copy.
         scunch(sourceFolderPath, scmWork, textOptions, move=options.moveMode, includePatternText=options.includePattern, excludePatternText=options.excludePattern, workOnlyPatternText=options.workOnlyPattern)

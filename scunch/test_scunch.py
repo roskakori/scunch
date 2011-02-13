@@ -316,10 +316,20 @@ class ScunchTest(_SvnTest):
 
         testScunchWithPurgePath = self.createTestFolder("testMainWithPurge")
         scmWork.exportTo(testScunchWithPurgePath, clear=True)
-        
+
         self.assertTrue(os.path.exists(scmWork.localTargetPath))
         self._testMain(["--after", "purge", testScunchWithPurgePath, scmWork.localTargetPath])
         self.assertFalse(os.path.exists(scmWork.localTargetPath))
+
+    def testMainWithUpdate(self):
+        self.setUpProject("mainWithUpdate")
+        scmWork = self.scmWork
+
+        testScunchWithUpdatePath = self.createTestFolder("testMainWithUpdate")
+        scmWork.exportTo(testScunchWithUpdatePath, clear=True)
+
+        # TODO: Improve test for "--before=update" by creating a second working copy and committing a change from it.        
+        self._testMain(["--before", "update", testScunchWithUpdatePath, scmWork.localTargetPath])
 
 class ScmPuncherTest(_SvnTest):
     """
