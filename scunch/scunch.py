@@ -657,14 +657,14 @@ class _Actions(object):
     Pseudo class to collect possible actions for ``--before`` and ``--after``.
     """
     # TODO: #10: Checkout = 'checkout'
-    # TODO: #10: Clean = 'clean'
     Commit = 'commit'
     None_ = 'none'
     Purge = 'purge'
     Update = 'update'
+    Reset = 'reset'
     
 _ValidAfterActions = set([_Actions.Commit, _Actions.None_, _Actions.Purge])
-_ValidBeforeActions = set([_Actions.None_, _Actions.Update])
+_ValidBeforeActions = set([_Actions.None_, _Actions.Reset, _Actions.Update])
 _ValidConsoleNormalizations = set(['auto', 'nfc', 'nfkc', 'nfd', 'nfkd'])
 
 def _setUpLogging(level=logging.INFO):
@@ -786,16 +786,17 @@ class ScmStatus(object):
     Merged = "merged"
     Missing = "missing"
     Modified = "modified"
-    None_ = "none"
+    _None = "none"
     Normal = "normal"
     Obstructed = "obstructed"
     Removed = "deleted"
     Replaced = "replaced"
     Unversioned = "unversioned"
 
-    _CleanStati = set([External, Ignored, None_, Normal])
+    _CleanStati = set([External, Ignored, None, Normal])
     _ModifiedStati = set([Added, Merged, Modified, Removed])
     _CommitableStati = _CleanStati | _ModifiedStati
+    _StatiNotToReset = set([Ignored, None, Normal])
 
     _SvnStatusToStatusMap = {
         "added": Added,
@@ -807,7 +808,12 @@ class ScmStatus(object):
         "merged": Merged,
         "missing": Missing,
         "modified": Modified,
-        "none": None_,
+        # Note: status 'none' is not mapped to `None` directly because this
+        # would prevent us from detecting unknown stati (which return `None`
+        # when looked up.
+        #
+        # Nevertheless, `ScmStatus` uses `None` to reprenset a 'none' status
+        "none": _None,
         "normal": Normal,
         "obstructed": Obstructed,
         "replaced": Replaced,
@@ -836,6 +842,15 @@ class ScmStatus(object):
     def isCommitable(self):
         return self._bothStatIn(ScmStatus._CommitableStati)
 
+    def isResetable(self):
+        """
+        ``True`` if the status indicates that the path should be removed by
+        `ScmWork.reset()`.
+        """
+        resetBacauseOfEntryStatus = self.status not in ScmStatus._StatiNotToReset
+        resetBecauseOfPropertiesStatus = self.propertiesStatus not in ScmStatus._StatiNotToReset
+        return resetBacauseOfEntryStatus or resetBecauseOfPropertiesStatus
+
     def __unicode__(self):
         return u"%s:%s,%s" % (self.path, self.status, self.propertiesStatus)
 
@@ -857,7 +872,7 @@ class _SvnStatusContentHandler(ContentHandler):
         result = ScmStatus._SvnStatusToStatusMap.get(svnStatus)
         if result is None:
             raise ScmError("cannot process unknown status: %r" % svnStatus)
-        if result == ScmStatus.None_:
+        if result == ScmStatus._None:
             result = None
         return result
 
@@ -1358,6 +1373,34 @@ class ScmWork(object):
         _log.info("purge work copy at \"%s\"", self.localTargetPath)
         _tools.removeFolder(self.localTargetPath)
 
+    def reset(self):
+        """
+        Reset the work copy to its baseline. The cleans up any locks, revert
+        changes and removes any files not under version control.
+        """
+        _log.info("reset work copy at \"%s\"", self.localTargetPath)
+        _log.debug("  clean up pending locks")
+        scmCommand = ["svn", "cleanup", "--non-interactive", self.localTargetPath]
+        run(scmCommand)
+        _log.debug("  revert uncommited changes")
+        scmCommand = ["svn", "revert", "--recursive", "--non-interactive", self.localTargetPath]
+        run(scmCommand)
+        _log.debug("  remove unversioned files and folders")
+        folderPathsToRemove = []
+        for statusItem in self.status(""):
+            pathToRemove = statusItem.path
+            if statusItem.isResetable():
+                if os.path.isfile(pathToRemove):
+                    _log.debug("    remove file \"%s\"", pathToRemove)
+                    os.remove(pathToRemove)
+                elif os.path.isdir(pathToRemove):
+                    folderPathsToRemove.append(pathToRemove)
+                else:
+                    raise ScmError(u"path to reset must be either a file or directory: \"%s\"" % pathToRemove)
+        for folderPathToRemove in folderPathsToRemove:
+            _log.debug("    remove folder \"%s\"", folderPathToRemove)
+            # TODO: shutil.rmtree(folderPathToRemove)
+
     def update(self, relativePathToUpdate=""):
         _log.info("update out work copy at \"%s\"", self.localTargetPath)
         pathToUpdate = os.path.join(self.localTargetPath, relativePathToUpdate)
@@ -1661,6 +1704,19 @@ def parsedOptions(arguments):
 
     # Validate actions for option ``--before``.
     actionsToPerformBeforePunching = _parsedActions(parser, '--before', options.actionsToPerformBeforePunching, _ValidBeforeActions)
+    # 10: Consider Actions.Checkout to be destructive
+    destructiveActions = set([_Actions.Reset])
+    previousDestructiveAction = None
+    previousAction = None
+    for action in actionsToPerformBeforePunching:
+        if action in destructiveActions:
+            if previousDestructiveAction:
+                parser.error("action %r in option --before must not appear together with action %r: %s" % (action, previousDestructiveAction, options.actionsToPerformBeforePunching))
+            if previousAction:
+                parser.error("action %r in option --before must appear before action %r: %s" % (action, previousAction, options.actionsToPerformBeforePunching))
+            previousDestructiveAction = action
+        else:
+            previousAction = action
             
     # Validate actions for option ``--after``.
     actionsToPerformAfterPunching = _parsedActions(parser, '--after', options.actionsToPerformAfterPunching, _ValidAfterActions)
@@ -1696,7 +1752,9 @@ def main(arguments=None):
         # Perform actions before punching.
         for action in actionsToPerformBeforePunching:
             assert action in _ValidBeforeActions
-            if action == _Actions.Update:
+            if action == _Actions.Reset:
+                scmWork.reset()
+            elif action == _Actions.Update:
                 scmWork.update()
             else:
                 assert action == _Actions.None_

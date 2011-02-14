@@ -169,6 +169,23 @@ class BasicTest(_SvnTest):
         self.scmWork.purge()
         self.assertFalse(os.path.exists(self.scmWork.localTargetPath))
         
+    def testReset(self):
+        self.setUpProject("testReset")
+        
+        # Modify a few files.
+        addedPyPath = self.scmWork.absolutePath("test file to add", os.path.join("loops", "added.py"))
+        forRangePyPath = self.scmWork.absolutePath("test file to remove", os.path.join("loops", "forRange.py"))
+        whilePyPath = self.scmWork.absolutePath("test file to change", os.path.join("loops", "while.py"))
+        self.writeTextFile(addedPyPath, ["# Just some added file."])
+        os.remove(forRangePyPath)
+        self.writeTextFile(whilePyPath, ["# Just some changed file."])
+
+        self.scmWork.reset()
+        self.assertFalse(os.path.exists(addedPyPath))
+        self.assertTrue(os.path.exists(forRangePyPath))
+        self.assertTrue(os.path.exists(whilePyPath))
+        self.assertNonNormalStatus({})
+        
 class ScunchTest(_SvnTest):
     """
     TestCase for `scunch.scunch()`.
@@ -330,6 +347,28 @@ class ScunchTest(_SvnTest):
 
         # TODO: Improve test for "--before=update" by creating a second working copy and committing a change from it.        
         self._testMain(["--before", "update", testScunchWithUpdatePath, scmWork.localTargetPath])
+
+    def testMainWithResetCommit(self):
+        self.setUpProject("mainWithReset")
+        scmWork = self.scmWork
+
+        testScunchWithResetPath = self.createTestFolder("testMainWithReset")
+        scmWork.exportTo(testScunchWithResetPath, clear=True)
+
+        # TODO: Improve test for "--before=reset" by messing up a few files to set that reset does something useful.
+        # Note: We are doing an --after commit to in order to ensure that the work copy is still consistent after the reset.        
+        self._testMain(["--before", "reset", "--after", "commit", testScunchWithResetPath, scmWork.localTargetPath])
+
+    def testMainWithResetUpdateCommitPurge(self):
+        # This test just exercises many --after and --before actions in combination.
+        self.setUpProject("mainWithResetUpdateCommitPurge")
+        scmWork = self.scmWork
+
+        testScunchWithResetUpdateCommitPurgePath = self.createTestFolder("testMainWithResetUpdateCommitPurge")
+        scmWork.exportTo(testScunchWithResetUpdateCommitPurgePath, clear=True)
+
+        self._testMain(["--before", "reset, update", "--after", "commit, purge", testScunchWithResetUpdateCommitPurgePath, scmWork.localTargetPath])
+        self.assertFalse(os.path.exists(scmWork.localTargetPath))
 
 class ScmPuncherTest(_SvnTest):
     """
