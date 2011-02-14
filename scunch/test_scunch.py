@@ -223,11 +223,13 @@ class ScunchTest(_SvnTest):
             arguments.extend(cliOptions)
             if currentFolderPathToSet:
                 os.chdir(currentFolderPathToSet)
-            exitCode = scunch.main(arguments)
+            exitCode, exitError = scunch.main(arguments)
+            if not expectedExitCode and exitError:
+                raise exitError
+            self.assertEqual(exitCode, expectedExitCode)
         finally:
             os.chdir(currentFolderPathAtStartOfTest)
             _log.setLevel(logLevelAtStartOfTest)
-        return exitCode
 
     def _testMainWithSystemExit(self, cliOptions, expectedExitCode=0):
         oldLogLevel = _log.level
@@ -279,11 +281,11 @@ class ScunchTest(_SvnTest):
         makefilePath = os.path.join(workOnlyPath, "Makefile")
         self.writeTextFile(makefilePath, ["# Dummy Makefile that could call scunch and what not."])
         
-        self._testMain(["--work-only", "Makefile", testScunchWithWorkOnlyPatternPath], workOnlyPath)
+        self._testMain(["--before", "none", "--work-only", "Makefile", testScunchWithWorkOnlyPatternPath], workOnlyPath)
         self.assertTrue(os.path.exists(makefilePath))
 
         # Try again, but this time without ``--work-only``.
-        self._testMain([testScunchWithWorkOnlyPatternPath], workOnlyPath)
+        self._testMain(["--before", "none", testScunchWithWorkOnlyPatternPath], workOnlyPath)
         self.assertFalse(os.path.exists(makefilePath))
 
     def testMainWithIncludeAndExcludePattern(self):
@@ -307,7 +309,7 @@ class ScunchTest(_SvnTest):
         # Remove excluded file from work copy to make sure that it will not be transferred.
         os.remove(whilePyWorkPath)
         
-        self._testMain(["--include", "**/*.py", "--exclude", "loops/while.py", testScunchWithIncludeAndExcludePatternPath], workFolderPath)
+        self._testMain(["--before", "none", "--include", "**/*.py", "--exclude", "loops/while.py", testScunchWithIncludeAndExcludePatternPath], workFolderPath)
         self.assertTrue(os.path.getsize(helloPyWorkPath))
         self.assertFalse(os.path.exists(whilePyWorkPath))
 
@@ -355,7 +357,7 @@ class ScunchTest(_SvnTest):
         testScunchWithResetPath = self.createTestFolder("testMainWithReset")
         scmWork.exportTo(testScunchWithResetPath, clear=True)
 
-        # TODO: Improve test for "--before=reset" by messing up a few files to set that reset does something useful.
+        # TODO: Improve test for "--before=reset" by messing up a few files to that reset does something useful.
         # Note: We are doing an --after commit to in order to ensure that the work copy is still consistent after the reset.        
         self._testMain(["--before", "reset", "--after", "commit", testScunchWithResetPath, scmWork.localTargetPath])
 

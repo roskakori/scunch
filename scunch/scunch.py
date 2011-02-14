@@ -551,7 +551,11 @@ Version history
 
 **Version 0.5.1, 2011-02-xx**
 
-* Added command line option ``--after`` to specify actions to be taken
+* #10: Added command line option ``--before`` to specify action to be taken
+  before punching.
+* Added check that no changes are pending before copying files from the
+  external folder. Use ``--before=none`` to skip this.
+* #11: Added command line option ``--after`` to specify actions to be taken
   after punching.
 * Removed command line option ``--commit``, use ``--after=commit``
   instead.
@@ -657,6 +661,7 @@ class _Actions(object):
     Pseudo class to collect possible actions for ``--before`` and ``--after``.
     """
     # TODO: #10: Checkout = 'checkout'
+    Check = 'check'
     Commit = 'commit'
     None_ = 'none'
     Purge = 'purge'
@@ -664,7 +669,7 @@ class _Actions(object):
     Reset = 'reset'
     
 _ValidAfterActions = set([_Actions.Commit, _Actions.None_, _Actions.Purge])
-_ValidBeforeActions = set([_Actions.None_, _Actions.Reset, _Actions.Update])
+_ValidBeforeActions = set([_Actions.Check, _Actions.None_, _Actions.Reset, _Actions.Update])
 _ValidConsoleNormalizations = set(['auto', 'nfc', 'nfkc', 'nfd', 'nfkd'])
 
 def _setUpLogging(level=logging.INFO):
@@ -1356,6 +1361,16 @@ class ScmWork(object):
         self.specialPathPatternSet = antglob.AntPatternSet(False)
         self.specialPathPatternSet.include("**/.svn, **/_svn")
 
+    def check(self):
+        """
+        Check that work copy is up to date and no pending changes or messed
+        up files are flowing around; otherwise, raise an `ScmError`. To remedy
+        the conditons `check()` complains about, use `reset()`.
+        """
+        for statusEntry in self.status(""):
+            if statusEntry.isResetable():
+                raise ScmError("pending changes in \"%s\" must be comitted, use \"svn status\" for details." % self.localTargetPath)
+
     def checkout(self, purge=False):
         """
         Check out a work copy to ``localTargetPath``.
@@ -1659,7 +1674,7 @@ def parsedOptions(arguments):
     parser = optparse.OptionParser(usage=_Usage, description=_Description, version="%prog " + __version__)
     punchGroup = optparse.OptionGroup(parser, u"Punching options")
     punchGroup.add_option("-a", "--after", default=_Actions.None_, dest="actionsToPerformAfterPunching", metavar="ACTION", help=u'action(s) to perform after punching (default: "%default")')
-    punchGroup.add_option("-b", "--before", default='none', dest="actionsToPerformBeforePunching", metavar="ACTION", help=u'action(s) to perform before punching (default: "%default")')
+    punchGroup.add_option("-b", "--before", default=_Actions.Check, dest="actionsToPerformBeforePunching", metavar="ACTION", help=u'action(s) to perform before punching (default: "%default")')
     punchGroup.add_option("-i", "--include", dest="includePattern", metavar="PATTERN", help=u'ant pattern for file to include (default: all files)')
     punchGroup.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help=u'text for commit message (default: "%default")')
     punchGroup.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help=u'criteria to detect moved files (default: "%default")')
@@ -1731,6 +1746,11 @@ def parsedOptions(arguments):
     return (options, sourceFolderPath, workFolderPath, actionsToPerformBeforePunching, actionsToPerformAfterPunching)
 
 def main(arguments=None):
+    """
+    Main function for command line call returning a tuple
+    ``(exitCode, error)``. In cause everything worked out, the result is
+    ``(0, None)``. 
+    """
     if arguments == None:
         actualArguments = sys.argv
     else:
@@ -1745,6 +1765,7 @@ def main(arguments=None):
 
     # Do the actual work and log any errors.
     exitCode = 1
+    exitError = None
     try:
         scmWork = createScmWork(workFolderPath)
         textOptions = _createTextOptions(options)
@@ -1752,12 +1773,14 @@ def main(arguments=None):
         # Perform actions before punching.
         for action in actionsToPerformBeforePunching:
             assert action in _ValidBeforeActions
-            if action == _Actions.Reset:
+            if action == _Actions.Check:
+                scmWork.check()
+            elif action == _Actions.Reset:
                 scmWork.reset()
             elif action == _Actions.Update:
                 scmWork.update()
             else:
-                assert action == _Actions.None_
+                assert action == _Actions.None_, "action=%r" % action
 
         # Actually punch work copy.
         scunch(sourceFolderPath, scmWork, textOptions, move=options.moveMode, includePatternText=options.includePattern, excludePatternText=options.excludePattern, workOnlyPatternText=options.workOnlyPattern)
@@ -1775,9 +1798,14 @@ def main(arguments=None):
         exitCode = 0
     except (EnvironmentError, ScmError), error:
         _log.error("%s", error)
+        exitError = error
     except Exception, error:
         _log.exception("%s", error)
-    return exitCode
+        exitError = error
+    if exitCode:
+        assert exitError
+    return (exitCode, exitError)
 
 if __name__ == "__main__":
-    sys.exit(main())
+    exitCode, _ = main()
+    sys.exit(exitCode)
