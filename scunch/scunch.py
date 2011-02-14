@@ -780,6 +780,17 @@ def run(commandAndOptions, returnStdout=False, cwd=None):
     return result
 
 class ScmError(Exception):
+    """
+    Error related to performing an SCM operation.
+    """
+    pass
+
+class ScmPendingChangesError(Exception):
+    """
+    Error indicating that an SCM operation could not be performed due to
+    pending. To solve this, either commit or discard the changes and try
+    again.
+    """
     pass
 
 class ScmStatus(object):
@@ -817,7 +828,7 @@ class ScmStatus(object):
         # would prevent us from detecting unknown stati (which return `None`
         # when looked up.
         #
-        # Nevertheless, `ScmStatus` uses `None` to reprenset a 'none' status
+        # Nevertheless, `ScmStatus` uses `None` to represent a 'none' status
         "none": _None,
         "normal": Normal,
         "obstructed": Obstructed,
@@ -1369,7 +1380,7 @@ class ScmWork(object):
         """
         for statusEntry in self.status(""):
             if statusEntry.isResetable():
-                raise ScmError("pending changes in \"%s\" must be comitted, use \"svn status\" for details." % self.localTargetPath)
+                raise ScmPendingChangesError("pending changes in \"%s\" must be comitted, use \"svn status\" for details." % self.localTargetPath)
 
     def checkout(self, purge=False):
         """
@@ -1796,6 +1807,9 @@ def main(arguments=None):
                 assert action == _Actions.None_
                 
         exitCode = 0
+    except ScmPendingChangesError, error:
+        _log.error("%s To resolve this, '--before=reset' to discard the changes or '--before=none' to ignore them." % error)
+        exitError = error
     except (EnvironmentError, ScmError), error:
         _log.error("%s", error)
         exitError = error

@@ -25,6 +25,7 @@ from urlparse import urljoin
 
 import scunch
 import _tools
+from scunch import ScmPendingChangesError
 
 _log = logging.getLogger("test")
 
@@ -317,17 +318,31 @@ class ScunchTest(_SvnTest):
         self.setUpProject("mainWithComit")
         scmWork = self.scmWork
 
-        testScunchWithWorkOnlyPatternPath = self.createTestFolder("testMainWithCommit")
-        scmWork.exportTo(testScunchWithWorkOnlyPatternPath, clear=True)
+        testScunchWithCommitPath = self.createTestFolder("testMainWithCommit")
+        scmWork.exportTo(testScunchWithCommitPath, clear=True)
         
         workFolderPath = scmWork.absolutePath("work folder", "")
         workReadmeTxtPath = self.scmWork.absolutePath("test file path", "ReadMe.txt")
-        externalReadmeTxtPath = os.path.join(testScunchWithWorkOnlyPatternPath, "ReadMe.txt")
+        externalReadmeTxtPath = os.path.join(testScunchWithCommitPath, "ReadMe.txt")
         os.remove(externalReadmeTxtPath)
 
-        self._testMain(["--after", "commit", testScunchWithWorkOnlyPatternPath, workFolderPath])
+        self._testMain(["--after", "commit", testScunchWithCommitPath, workFolderPath])
         self.assertNonNormalStatus({})
         self.assertFalse(os.path.exists(workReadmeTxtPath))
+
+    def testMainWithCheckAndPendingChanges(self):
+        self.setUpProject("mainCheckAndPendingChanges")
+        scmWork = self.scmWork
+
+        testScunchWithCheckAndPendingChangesPath = self.createTestFolder("testMainWithCheckAndPendingChanges")
+        scmWork.exportTo(testScunchWithCheckAndPendingChangesPath, clear=True)
+        
+        # Enforce a change by removing a file under version control.
+        workFolderPath = scmWork.absolutePath("work folder", "")
+        workReadmeTxtPath = self.scmWork.absolutePath("test file path", "ReadMe.txt")
+        os.remove(workReadmeTxtPath)
+
+        self.assertRaises(ScmPendingChangesError, self._testMain, [testScunchWithCheckAndPendingChangesPath, workFolderPath])
 
     def testMainWithPurge(self):
         self.setUpProject("mainWithPurge")
