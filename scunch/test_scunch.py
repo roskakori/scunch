@@ -114,16 +114,16 @@ class _SvnTest(_ScmTest):
         """
         super(_SvnTest, self).setUpProject(project, testFolderPath)
         storagePath = os.path.join(self.testFolderPath, "svnRepository", self.project)
-        storageQualifier = urljoin("file://localhost/", storagePath)
-        self._scmStorage = scunch.ScmStorage(storageQualifier)
+        self.scmDepotQualifier = urljoin("file://localhost/", storagePath)
+        self.scmDepot = scunch.ScmStorage(self.scmDepotQualifier)
         os.makedirs(storagePath)
-        self._trunkUri = self._scmStorage.absoluteQualifier("trunk")
+        self.scmDepotTrunkQualifier = self.scmDepot.absoluteQualifier("trunk")
 
-        self._scmStorage.create(storagePath)
-        self._scmStorage.mkdir(["branches", "tags", "trunk"], "Added project folders.")
+        self.scmDepot.create(storagePath)
+        self.scmDepot.mkdir(["branches", "tags", "trunk"], "Added project folders.")
         self.workBaseFolderPath = os.path.join(self.testFolderPath, "svnWork")
         self.workFolderPath = os.path.join(self.workBaseFolderPath, self.project)
-        self.scmWork = scunch.ScmWork(self._scmStorage, "trunk", self.workFolderPath, scunch.ScmWork.CheckOutActionReset)
+        self.scmWork = scunch.ScmWork(self.scmDepot, "trunk", self.workFolderPath, scunch.ScmWork.CheckOutActionReset)
 
         # Create a few files in the project root folder.
         helloPyPath = self.scmWork.absolutePath("test file path", "hello.py")
@@ -343,6 +343,22 @@ class ScunchTest(_SvnTest):
         os.remove(workReadmeTxtPath)
 
         self.assertRaises(ScmPendingChangesError, self._testMain, [testScunchWithCheckAndPendingChangesPath, workFolderPath])
+
+    def testMainWithCheckout(self):
+        self.setUpProject("mainWithCheckout")
+        scmWork = self.scmWork
+
+        testScunchWithCheckoutPath = self.createTestFolder("testMainWithCheckout")
+        scmWork.exportTo(testScunchWithCheckoutPath, clear=True)
+
+        self.assertTrue(os.path.exists(scmWork.localTargetPath))
+        self._testMain(["--before", "checkout", "--depot", self.scmDepotTrunkQualifier, testScunchWithCheckoutPath, scmWork.localTargetPath])
+        self.assertTrue(os.path.exists(scmWork.localTargetPath))
+
+        _tools.removeFolder(scmWork.localTargetPath)
+        self.assertFalse(os.path.exists(scmWork.localTargetPath))
+        self._testMain(["--before", "checkout", "--depot", self.scmDepotTrunkQualifier, testScunchWithCheckoutPath, scmWork.localTargetPath])
+        self.assertTrue(os.path.exists(scmWork.localTargetPath))
 
     def testMainWithPurge(self):
         self.setUpProject("mainWithPurge")

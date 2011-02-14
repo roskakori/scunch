@@ -660,7 +660,7 @@ class _Actions(object):
     """
     Pseudo class to collect possible actions for ``--before`` and ``--after``.
     """
-    # TODO: #10: Checkout = 'checkout'
+    Checkout = 'checkout'
     Check = 'check'
     Commit = 'commit'
     None_ = 'none'
@@ -669,7 +669,7 @@ class _Actions(object):
     Reset = 'reset'
     
 _ValidAfterActions = set([_Actions.Commit, _Actions.None_, _Actions.Purge])
-_ValidBeforeActions = set([_Actions.Check, _Actions.None_, _Actions.Reset, _Actions.Update])
+_ValidBeforeActions = set([_Actions.Check, _Actions.Checkout, _Actions.None_, _Actions.Reset, _Actions.Update])
 _ValidConsoleNormalizations = set(['auto', 'nfc', 'nfkc', 'nfd', 'nfkd'])
 
 def _setUpLogging(level=logging.INFO):
@@ -918,7 +918,7 @@ class ScmStorage(object):
         Create a storage at ``baseQualifier``. The syntax for the baseQualifier depends on the SCM used.
         If the storage does not yet physically exist, use `create` before calling any other commands.
         """
-        self.checkAbsolteQualifier("base baseQualifier", baseQualifier)
+        self.checkAbsoluteQualifier("base baseQualifier", baseQualifier)
         self.baseQualifier = baseQualifier
         if not self.baseQualifier.endswith("/"):
             self.baseQualifier += "/"
@@ -932,7 +932,7 @@ class ScmStorage(object):
             raise NotImplementedError()
         run(scmCreateCommand)
 
-    def checkAbsolteQualifier(self, name, qualifierToCheck):
+    def checkAbsoluteQualifier(self, name, qualifierToCheck):
         assert name
         ValidProtocols = ("file", "http", "https", "svn", "svn+ssh")
         if qualifierToCheck is None:
@@ -954,7 +954,7 @@ class ScmStorage(object):
     def absoluteQualifier(self, relativeQualifier):
         self.checkRelativeQualifier("internal qualifier", relativeQualifier)
         result = urlparse.urljoin(self.baseQualifier, relativeQualifier)
-        self.checkAbsolteQualifier("internal qualifier", result)
+        self.checkAbsoluteQualifier("internal qualifier", result)
         return result
 
     def absoluteQualifiers(self, relativeQualifiers):
@@ -1353,7 +1353,7 @@ class ScmWork(object):
         assert relativeQualifierInStorage is not None
         assert localTargetPath is not None
         if checkOutAction not in ScmWork._ValidCheckOutActions:
-            raise ScmError("check out action is %r but must be one of: %s", str(sorted(ScmWork._ValidCheckOutActions)))
+            raise ScmError("check out action is %r but must be one of: %s", _tools.humanReadableList(sorted(ScmWork._ValidCheckOutActions)))
         self.storage = storage
         self.relativeQualifierInStorage = relativeQualifierInStorage
         self.baseWorkQualifier = self.storage.absoluteQualifier(self.relativeQualifierInStorage)
@@ -1361,7 +1361,7 @@ class ScmWork(object):
 
         hasExistingWork = os.path.exists(self.localTargetPath)
         if hasExistingWork and (checkOutAction == ScmWork.CheckOutActionReset):
-            self.clear()
+            self.purge()
 
         if checkOutAction in (ScmWork.CheckOutActionCreate, ScmWork.CheckOutActionReset):
             self.checkout()
@@ -1372,13 +1372,14 @@ class ScmWork(object):
         self.specialPathPatternSet = antglob.AntPatternSet(False)
         self.specialPathPatternSet.include("**/.svn, **/_svn")
 
-    def check(self):
+    def check(self,relativePath=u""):
         """
         Check that work copy is up to date and no pending changes or messed
         up files are flowing around; otherwise, raise an `ScmError`. To remedy
         the conditons `check()` complains about, use `reset()`.
         """
-        for statusEntry in self.status(""):
+        assert relativePath is not None
+        for statusEntry in self.status(relativePath):
             if statusEntry.isResetable():
                 raise ScmPendingChangesError("pending changes in \"%s\" must be comitted, use \"svn status\" for details." % self.localTargetPath)
 
@@ -1392,16 +1393,16 @@ class ScmWork(object):
         scmCommand = ["svn", "checkout", self.baseWorkQualifier, self.localTargetPath]
         run(scmCommand)
 
-    def purge(self, ignoreErrors=False):
+    def purge(self):
         """
-        Remove work copy folder and all its contents.
+        Remove work copy folder and all its contents. If the folder does not exist, do nothing.
         """
         _log.info("purge work copy at \"%s\"", self.localTargetPath)
         _tools.removeFolder(self.localTargetPath)
 
     def reset(self):
         """
-        Reset the work copy to its baseline. The cleans up any locks, revert
+        Reset the work copy to its baseline. This cleans up any locks, reverts
         changes and removes any files not under version control.
         """
         _log.info("reset work copy at \"%s\"", self.localTargetPath)
@@ -1686,6 +1687,7 @@ def parsedOptions(arguments):
     punchGroup = optparse.OptionGroup(parser, u"Punching options")
     punchGroup.add_option("-a", "--after", default=_Actions.None_, dest="actionsToPerformAfterPunching", metavar="ACTION", help=u'action(s) to perform after punching (default: "%default")')
     punchGroup.add_option("-b", "--before", default=_Actions.Check, dest="actionsToPerformBeforePunching", metavar="ACTION", help=u'action(s) to perform before punching (default: "%default")')
+    punchGroup.add_option("-d", "--depot", dest="depotQualifier", metavar="QUALIFIER", help=u'qualifier for source code depot when using --before=checkout')
     punchGroup.add_option("-i", "--include", dest="includePattern", metavar="PATTERN", help=u'ant pattern for file to include (default: all files)')
     punchGroup.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help=u'text for commit message (default: "%default")')
     punchGroup.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help=u'criteria to detect moved files (default: "%default")')
@@ -1740,6 +1742,8 @@ def parsedOptions(arguments):
                 parser.error("action %r in option --before must not appear together with action %r: %s" % (action, previousDestructiveAction, options.actionsToPerformBeforePunching))
             if previousAction:
                 parser.error("action %r in option --before must appear before action %r: %s" % (action, previousAction, options.actionsToPerformBeforePunching))
+            if (action == _Actions.Checkout) and not options.depotQualifier:
+                parser.error('--depot must be specified for --before=%s' % _Actions.Checkout)
             previousDestructiveAction = action
         else:
             previousAction = action
@@ -1778,7 +1782,12 @@ def main(arguments=None):
     exitCode = 1
     exitError = None
     try:
-        scmWork = createScmWork(workFolderPath)
+        if _Actions.Checkout in actionsToPerformBeforePunching:
+            assert actionsToPerformBeforePunching[0] == _Actions.Checkout
+            scmStorage = ScmStorage(options.depotQualifier)
+            scmWork = ScmWork(scmStorage, "", workFolderPath, ScmWork.CheckOutActionReset)
+        else:
+            scmWork = createScmWork(workFolderPath)
         textOptions = _createTextOptions(options)
         
         # Perform actions before punching.
@@ -1786,6 +1795,8 @@ def main(arguments=None):
             assert action in _ValidBeforeActions
             if action == _Actions.Check:
                 scmWork.check()
+            elif action == _Actions.Checkout:
+                scmWork.checkout(True)
             elif action == _Actions.Reset:
                 scmWork.reset()
             elif action == _Actions.Update:
