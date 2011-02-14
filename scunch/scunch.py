@@ -151,14 +151,39 @@ files in the work copy's top folder are of interest.
 Preparing the work copy
 -----------------------
 
-To prepare the work copy use ``--before``. By default, ``scunch`` does not
-do anything to the work copy. This might confuse ``scunch`` in case there
-are files missing or files have yet to be added and committed. In case the
-repository already contains a new version, conflicts might ensue.
+When punching any changes from the external folder the current state of the
+work copy influences what actually is going to happen.
 
-To make sure the work copy contains the most current version, use::
- 
-  $ scunch --before update ...
+``Scunch`` works best on a clean work copy without any pending changes and
+messed up files. If this is not the case, ``scunch`` refuses to continue
+announcing:
+
+  Pending changes in "..." must be committed, use "svn status" for details.
+  To resolve this, '--before=reset' to discard the changes or
+  '--before=none' to ignore them.
+
+In case you are sure the changes are irrelvant and intend to discard them,
+use::
+
+  $ scunch --before reset ...
+
+This reverts all changes and removes files not under version control.
+
+In case you prefer a clean check out, use::
+
+  $ scunch --before checkout --depot http://example.com/ohsome/trunk ...
+
+where ``http://example.com/ohsome/trunk`` represents the project's depot
+qualifier. Note that a ``before=checkout`` usually takes longer than a
+``--before=reset`` because a checkout needs to obtain all files again
+where else a ``--before=checkout`` needs to obtain every file in the depot.
+
+In case you are happy with the current pending changes and want to preserve
+them even after punching the external changes, use::
+
+  $ scunch --before none ...
+
+The result might or might not be what you want, though.
 
 
 Committing punched changes
@@ -374,7 +399,7 @@ To update the timestamp in the repository, Tim sets the revision property
 Note that this only works with the ``file`` protocol. If you want to do the
 same on a repository using the ``http`` protocol, you have to install a
 proper post commit hook in the repository that allows you to change
-properties even after they have been comitted. Refer to the Subversion
+properties even after they have been committed. Refer to the Subversion
 manual for details on how to do that.
 
 Similarly, Tim can set the log comments to a more meaningful text using the
@@ -1381,7 +1406,7 @@ class ScmWork(object):
         assert relativePath is not None
         for statusEntry in self.status(relativePath):
             if statusEntry.isResetable():
-                raise ScmPendingChangesError("pending changes in \"%s\" must be comitted, use \"svn status\" for details." % self.localTargetPath)
+                raise ScmPendingChangesError("pending changes in \"%s\" must be committed, use \"svn status\" for details." % self.localTargetPath)
 
     def checkout(self, purge=False):
         """
