@@ -574,7 +574,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Version history
 ===============
 
-**Version 0.5.1, 2011-02-xx**
+**Version 0.5.2, 2011-02-16**
+
+* Added list of possible values to ``--help`` for options of type choice.
+
+**Version 0.5.1, 2011-02-14**
 
 * #10: Added command line option ``--before`` to specify action to be taken
   before punching.
@@ -673,7 +677,7 @@ from xml.sax.handler import ContentHandler
 import antglob
 import _tools
 
-__version_info__ = (0, 5, 1)
+__version_info__ = (0, 5, 2)
 __version__ = '.'.join(unicode(item) for item in __version_info__)
 
 _log = logging.getLogger("scunch")
@@ -1710,25 +1714,28 @@ def parsedOptions(arguments):
 
     parser = optparse.OptionParser(usage=_Usage, description=_Description, version="%prog " + __version__)
     punchGroup = optparse.OptionGroup(parser, u"Punching options")
-    punchGroup.add_option("-a", "--after", default=_Actions.None_, dest="actionsToPerformAfterPunching", metavar="ACTION", help=u'action(s) to perform after punching (default: "%default")')
-    punchGroup.add_option("-b", "--before", default=_Actions.Check, dest="actionsToPerformBeforePunching", metavar="ACTION", help=u'action(s) to perform before punching (default: "%default")')
+    punchGroup.add_option("-a", "--after", default=_Actions.None_, dest="actionsToPerformAfterPunching", metavar="ACTION", help=u'action(s) to perform after punching: %s (default: \'%%default\')' % _tools.humanReadableList(_ValidAfterActions))
+    punchGroup.add_option("-b", "--before", default=_Actions.Check, dest="actionsToPerformBeforePunching", metavar="ACTION", help=u'action(s) to perform before punching: %s (default: \'%%default\')' % _tools.humanReadableList(_ValidBeforeActions))
     punchGroup.add_option("-d", "--depot", dest="depotQualifier", metavar="QUALIFIER", help=u'qualifier for source code depot when using --before=checkout')
     punchGroup.add_option("-i", "--include", dest="includePattern", metavar="PATTERN", help=u'ant pattern for file to include (default: all files)')
     punchGroup.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help=u'text for commit message (default: "%default")')
-    punchGroup.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help=u'criteria to detect moved files (default: "%default")')
+    punchGroup.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help=u'criteria to detect moved files: %s (default: "%%default")' % _tools.humanReadableList(ScmPuncher._ValidMoveModes))
     punchGroup.add_option("-w", "--work-only", dest="workOnlyPattern", metavar="PATTERN", help=u'ant pattern for files that only reside in work copy but still should remain (default: none)')
     punchGroup.add_option("-x", "--exclude", dest="excludePattern", metavar="PATTERN", help=u'ant pattern for file to exclude (default: exclude no files but the default excludes)')
     parser.add_option_group(punchGroup)
     textGroup = optparse.OptionGroup(parser, u"Text file conversion options")
-    textGroup.add_option("-N", "--newline", dest="newLine", metavar="KIND", type="choice", choices=sorted(_NameToNewLineMap.keys()), help=u'separator at the end of line in --text files (default: "native")')
+    # Note: --newline does not use default='native' because it is allowed to have a value only
+    # when --text is enabled. Otherwise, you get:
+    # "error: option --text must be set to enable option --newline"
+    textGroup.add_option("-N", "--newline", dest="newLine", metavar="KIND", type="choice", choices=_NameToNewLineMap.keys(), help=u'separator at the end of line in --text files: %s (default: \'native\')'  % _tools.humanReadableList(sorted(_NameToNewLineMap.keys())))
     textGroup.add_option("-S", "--strip-trailing", action="store_true", dest="isStripTrailing", help=u"strip trailing white space from --text files")
     textGroup.add_option("-t", "--text", dest="textPatternSet", metavar="PATTERN", help=u'ant pattern for files to be considered text files (default: none)')
     textGroup.add_option("-T", "--tabsize", default=TextOptions.PreserveTabs, dest="tabSize", metavar="NUMBER", type=long, help=u'number of spaces to allign tabs with in --text files; %d=keep tab (default: %%default)' % TextOptions.PreserveTabs)
     parser.add_option_group(textGroup)
     consoleGroup = optparse.OptionGroup(parser, u"Console and logging options")
     consoleGroup.add_option("-e", "--encoding", default='auto', help=u'encoding to use for running console commands (default: "%default")')
-    consoleGroup.add_option("-L", "--log", default='info', dest="logLevel", metavar="LEVEL", type="choice", choices=sorted(_NameToLogLevelMap.keys()), help=u'logging level (default: "%default")')
-    consoleGroup.add_option("-n", "--normalize", default='auto', dest="unicodeNormalization", metavar="FORM", type="choice", choices=sorted(_ValidConsoleNormalizations), help=u'uncode normalization to use for running console commands (default: "%default")')
+    consoleGroup.add_option("-L", "--log", default='info', dest="logLevel", metavar="LEVEL", type="choice", choices=sorted(_NameToLogLevelMap.keys()), help=u'logging level: %s (default: \'%%default\')' % _tools.humanReadableList(sorted(_NameToLogLevelMap.keys())))
+    consoleGroup.add_option("-n", "--normalize", default='auto', dest="unicodeNormalization", metavar="FORM", type="choice", choices=sorted(_ValidConsoleNormalizations), help=u'uncode normalization to use for running console commands: %s (default: \'%%default\')' % _tools.humanReadableList(_ValidConsoleNormalizations))
     parser.add_option_group(consoleGroup)
 
     # Parse and validate command line options.
