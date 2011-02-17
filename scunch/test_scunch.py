@@ -389,7 +389,7 @@ class ScunchTest(_SvnTest):
         scmWork.exportTo(testScunchWithResetPath, clear=True)
 
         # TODO: Improve test for "--before=reset" by messing up a few files to that reset does something useful.
-        # Note: We are doing an --after commit to in order to ensure that the work copy is still consistent after the reset.        
+        # Note: We are doing an --after commit in order to ensure that the work copy is still consistent after the reset.        
         self._testMain(["--before", "reset", "--after", "commit", testScunchWithResetPath, scmWork.localTargetPath])
 
     def testMainWithResetUpdateCommitPurge(self):
@@ -507,6 +507,19 @@ class ScmPuncherTest(_SvnTest):
 
         self.assertNonNormalStatus({scunch.ScmStatus.Added: 2, scunch.ScmStatus.Removed: 2})
         self._testAfterPunch(testPunchWithMovedFilesPath)
+
+    def testPunchWithMovedRoot(self):
+        self.setUpProject("punchWithMovedRoot")
+        scmWork = self.scmWork
+
+        testPunchWithMovedRootPath = self.createTestFolder("testPunchWithMovedRoot")
+        scmWork.exportTo(os.path.join(testPunchWithMovedRootPath, "subFolder"), clear=True)
+
+        movingPuncher = scunch.ScmPuncher(scmWork)
+        movingPuncher.punch(testPunchWithMovedRootPath)
+
+        self.assertNonNormalStatus({scunch.ScmStatus.Added: 8, scunch.ScmStatus.Removed: 7})
+        self._testAfterPunch(testPunchWithMovedRootPath)
 
     def _assertWorkTextFileEquals(self, correspondingExternalTextFilePath, expectedContent):
         assert correspondingExternalTextFilePath is not None

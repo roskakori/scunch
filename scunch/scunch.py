@@ -574,9 +574,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Version history
 ===============
 
-**Version 0.5.2, 2011-02-16**
+**Version 0.5.2, 2011-02-17**
 
-* Added list of possible values to ``--help`` for options of type choice.
+* #16: Fixed moving of files in moved folders, during which the containing folder
+  was removed before the files could be moved.
+* #15: Added list of possible values to ``--help`` for options of type choice.
 
 **Version 0.5.1, 2011-02-14**
 
@@ -1315,15 +1317,6 @@ class ScmPuncher(object):
 
     def _applyChangedItems(self, textOptions):
         _log.info("punch modifications into work copy")
-        if self._removedItems:
-            _log.info("remove %d items", len(self._removedItems))
-            relativePathsToRemove = []
-            for itemToRemove in self._removedItems:
-                relativePathToRemove = itemToRemove.relativePath
-                _log.info('  remove "%s"', relativePathToRemove)
-                relativePathsToRemove.append(relativePathToRemove)
-            # Remove folder and files  using a single command call.
-            self.scmWork.remove(relativePathsToRemove, recursive=True, force=True)
         if self._transferedItems:
             _log.info("transfer %d items", len(self._transferedItems))
             for itemToTransfer in self._transferedItems:
@@ -1354,6 +1347,15 @@ class ScmPuncher(object):
                 _log.info('  move "%s" from "%s" to "%s"', os.path.basename(sourcePath), os.path.dirname(sourcePath), targetPath)
                 self.scmWork.move(sourcePath, targetPath, force=True)
                 self._transferItemFromExternalToWork(targetItemToMove, textOptions)
+        if self._removedItems:
+            _log.info("remove %d items", len(self._removedItems))
+            relativePathsToRemove = []
+            for itemToRemove in self._removedItems:
+                relativePathToRemove = itemToRemove.relativePath
+                _log.info('  remove "%s"', relativePathToRemove)
+                relativePathsToRemove.append(relativePathToRemove)
+            # Remove folder and files  using a single command call.
+            self.scmWork.remove(relativePathsToRemove, recursive=True, force=True)
 
     def punch(self, externalFolderPath, relativeWorkFolderPath="", textOptions=None, move=MoveName, includePatternText=None, excludePatternText=None, workOnlyPatternText=None):
         assert externalFolderPath is not None
