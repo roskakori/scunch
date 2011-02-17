@@ -69,3 +69,22 @@ def humanReadableList(items):
         assert result
     assert result is not None
     return result
+
+def oneOrOtherText(count, oneText, otherText):
+    """
+    Text depending ``count`` to properly use singular and plural.
+
+    >>>oneOrOtherText(0, 'item', 'items'):
+    '0 items'
+    >>>oneOrOtherText(1, 'item', 'items'):
+    '1 item'
+    >>>oneOrOtherText(2, 'item', 'items'):
+    '2 items'
+    """
+    assert count >= 0
+    if count == 1:
+        text = oneText
+    else:
+        text = otherText
+    result = u'%d %s' % (count, text)
+    return result
