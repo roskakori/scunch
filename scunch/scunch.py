@@ -49,7 +49,7 @@ If you prefer a manual installation, you can obtain the ZIP archive from
 <http://pypi.python.org/pypi/scunch/>.  Furthermore the source code is
 available from <https://github.com/roskakori/scunch>.
 
-To actually use ``scunch``, you lso need an SCM tool. In particular,
+To actually use ``scunch``, you also need an SCM tool. In particular,
 you need the SCM's command line client to be installed and located in the
 shell's search path. Installing a desktop plug-in such as `TortoiseSVN
 <http://tortoisesvn.tigris.org/>`_ is not enough because it does not
@@ -75,7 +75,7 @@ To read a summary of the available options, run::
   $ scunch --help
 
 For more detailed usage in real world scenarios, read the section on
-"<Scenarios scenarios>_".
+`<Scenarios scenarios>`_.
 
 Basic usage
 -----------
@@ -159,7 +159,7 @@ messed up files. If this is not the case, ``scunch`` refuses to continue
 announcing:
 
   Pending changes in "..." must be committed, use "svn status" for details.
-  To resolve this, '--before=reset' to discard the changes or
+  To resolve this, use '--before=reset' to discard the changes or
   '--before=none' to ignore them.
 
 In case you are sure the changes are irrelvant and intend to discard them,
@@ -680,7 +680,7 @@ from xml.sax.handler import ContentHandler
 import antglob
 import _tools
 
-__version_info__ = (0, 5, 2)
+__version_info__ = (0, 5, 3)
 __version__ = '.'.join(unicode(item) for item in __version_info__)
 
 _log = logging.getLogger("scunch")
@@ -699,7 +699,7 @@ class _Actions(object):
     Purge = 'purge'
     Update = 'update'
     Reset = 'reset'
-    
+
 _ValidAfterActions = set([_Actions.Commit, _Actions.None_, _Actions.Purge])
 _ValidBeforeActions = set([_Actions.Check, _Actions.Checkout, _Actions.None_, _Actions.Reset, _Actions.Update])
 _ValidConsoleNormalizations = set(['auto', 'nfc', 'nfkc', 'nfd', 'nfkd'])
@@ -1877,7 +1877,7 @@ def main(arguments=None):
                 
         exitCode = 0
     except ScmPendingChangesError, error:
-        _log.error("%s To resolve this, '--before=reset' to discard the changes or '--before=none' to ignore them." % error)
+        _log.error("%s To resolve this, use '--before=reset' to discard the changes or '--before=none' to ignore them." % error)
         exitError = error
     except (EnvironmentError, ScmError), error:
         _log.error("%s", error)
