@@ -661,6 +661,7 @@ Added options to normalize text files and fixed some critical bugs.
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import codecs
+import copy
 import difflib
 import locale
 import logging
@@ -700,6 +701,16 @@ class _Actions(object):
     Update = 'update'
     Reset = 'reset'
 
+class _Names(object):
+    """
+    Pseudo class to collect possible value for ``--names``.
+    """
+    Lower = 'lower'
+    Preserve = 'preserve'
+    Upper = 'upper'
+    # TODO: Add custom transformation based on functions: transformedName(name, externalPath, isFolder)
+
+_ValidNames = set([_Names.Lower, _Names.Preserve, _Names.Upper])
 _ValidAfterActions = set([_Actions.Commit, _Actions.None_, _Actions.Purge])
 _ValidBeforeActions = set([_Actions.Check, _Actions.Checkout, _Actions.None_, _Actions.Reset, _Actions.Update])
 _ValidConsoleNormalizations = set(['auto', 'nfc', 'nfkc', 'nfd', 'nfkd'])
@@ -1114,8 +1125,8 @@ class ScmPuncher(object):
         self._clear()
 
     def _clear(self):
-        self.externalItems = None
-        self.workItems = None
+        self.externalEntries = None
+        self.workEntries = None
         self._externalFolderPath = None
         self._entriesToAdd = None
         self._copiedItems = None
@@ -1203,7 +1214,7 @@ class ScmPuncher(object):
         else:
             shutil.copy2(externalPathOfItemToTransferFrom, workPathOfItemToTransferTo)
 
-    def _setExternalAndWorkItems(self, externalFolderPath, relativeWorkFolderPath, includePatternText, excludePatternText, workOnlyPatternText):
+    def _setExternalAndWorkEntries(self, externalFolderPath, relativeWorkFolderPath, includePatternText, excludePatternText, workOnlyPatternText):
         assert externalFolderPath is not None
         assert relativeWorkFolderPath is not None
 
@@ -1216,15 +1227,16 @@ class ScmPuncher(object):
             filesToPunchPatternSet.exclude(excludePatternText)
 
         # Collect external items.
-        self.externalItems = filesToPunchPatternSet.findEntries(externalFolderPath)
-        self.externalItems = _sortedFileSystemEntries(self.externalItems)
-        _log.info('found %d external items in "%s"', len(self.externalItems), self._externalFolderPath)
+        self.externalEntries = filesToPunchPatternSet.findEntries(externalFolderPath)
+        self.externalEntries = _sortedFileSystemEntries(self.externalEntries)
+        # TODO: Fix singular/plural in log.
+        _log.info('found %d external entries in "%s"', len(self.externalEntries), self._externalFolderPath)
 
         # Check that external items do not contain any work only items.
         if workOnlyPatternText:
             workFilesToPreservePatternSet = antglob.AntPatternSet(False)
             workFilesToPreservePatternSet.include(workOnlyPatternText)
-        for item in self.externalItems:
+        for item in self.externalEntries:
             _log.debug('  %s', item)
             if workOnlyPatternText and workFilesToPreservePatternSet.matchesParts(item.parts):
                 raise ScmError('entry in folder to punch must exist only in work copy: "%s"' % item.relativePath)
@@ -1232,19 +1244,54 @@ class ScmPuncher(object):
         # Collect items in work copy.
         if workOnlyPatternText:
             filesToPunchPatternSet.exclude(workOnlyPatternText)
-        self.workItems = self.scmWork.listFolderItems(relativeWorkFolderPath, filesToPunchPatternSet)
-        self.workItems = _sortedFileSystemEntries(self.workItems)
-        _log.info('found %d work items in "%s"', len(self.workItems), self.scmWork.absolutePath("work path", relativeWorkFolderPath))
-        for item in self.workItems:
+        self.workEntries = self.scmWork.listFolderItems(relativeWorkFolderPath, filesToPunchPatternSet)
+        self.workEntries = _sortedFileSystemEntries(self.workEntries)
+        # TODO: Fix singular/plural in log.
+        _log.info('found %d work entries in "%s"', len(self.workEntries), self.scmWork.absolutePath("work path", relativeWorkFolderPath))
+        for item in self.workEntries:
             _log.debug('  %s', item)
 
-    def _setAddedModifiedRemovedItems(self):
+    def _createTransformedFileSystemEntry(self, entry, names):
+        assert entry is not None
+        assert names in _ValidNames
+        result = copy.copy(entry)
+        if names == _Names.Lower:
+            result = copy.copy(entry)
+            result.setParts([item.lower() for item in entry.parts])
+        elif names == _Names.Preserve:
+            result = entry
+        elif names == _Names.Upper:
+            result = copy.copy(entry)
+            result.setParts([item.upper() for item in entry.parts])
+        else:
+            assert False
+        return result
+        
+    def _setAddedModifiedRemovedItems(self, names):
         assert self._externalFolderPath is not None
-        assert self.workItems is not None
-        assert self.externalItems is not None
+        assert self.workEntries is not None
+        assert self.externalEntries is not None
+        assert names in _ValidNames
+        
+        self._renamedExternalEntries = []
+        self._renamedToOriginalExternalEntriesMap = {}
+        for externalEntry in self.externalEntries:
+            renamedExternalEntry = self._createTransformedFileSystemEntry(externalEntry, names)
+            existingRenamedExternalEntry = self._renamedToOriginalExternalEntriesMap.get(renamedExternalEntry)
+            if existingRenamedExternalEntry:
+                _log.warning('name clash should be resolved: "%s" and "%s"', existingRenamedExternalEntry.path, renamedExternalEntry.path)
+                # FIXME: Enable exception: raise ScmError('name clash must be resolved: "%s" and "%s"' % (existingRenamedExternalEntry.path, renamedExternalEntry.path))
+            self._renamedToOriginalExternalEntriesMap[renamedExternalEntry] = externalEntry
+            self._renamedExternalEntries.append(renamedExternalEntry)
+        self._renamedExternalEntries = sorted(self._renamedExternalEntries)
+        assert len(self.externalEntries) == len(self._renamedExternalEntries)
+        # FIXME: Enable assertion: assert len(self.externalEntries) == len(self._renamedToOriginalExternalEntriesMap)
 
-        matcher = difflib.SequenceMatcher(None, self.workItems, self.externalItems)
+        self.workEntries = sorted(self.workEntries)
+        matcher = difflib.SequenceMatcher(None, self.workEntries, self._renamedExternalEntries)
         _log.debug("matcher: %s", matcher.get_opcodes())
+        _log.debug('  work=%s', self.workEntries)
+        _log.debug('  rnex=%s', self._renamedExternalEntries)
         self._entriesToAdd = []
         self._entriesToTransfer = []
         self._entriesToRemove = []
@@ -1252,71 +1299,71 @@ class ScmPuncher(object):
         for operation, i1, i2, j1, j2 in matcher.get_opcodes():
             _log.debug("%s: %d, %d; %d, %d", operation, i1, i2, j1, j2)
             if operation == 'insert':
-                self._add(self.externalItems[j1:j2])
+                self._add(self._renamedExternalEntries[j1:j2])
             elif operation == 'equal':
-                self._transfer(self.externalItems[j1:j2])
+                self._transfer(self._renamedExternalEntries[j1:j2])
             elif operation == 'delete':
-                self._remove(self.workItems[i1:i2])
+                self._remove(self.workEntries[i1:i2])
             elif operation == 'replace':
-                externalItemsToReplace = self.externalItems[j1:j2]
-                _log.debug("  external to replace: %s", externalItemsToReplace)
-                workItemsToReplace = self.workItems[i1:i2]
-                _log.debug("  work to replace: %s", workItemsToReplace)
-                allItems = set(self.workItems[i1:i2]) | set(self.externalItems[j1:j2])
-                for replaceditem in allItems:
-                    replacedWorkItems = set(self.workItems[i1:i2])
-                    replacedExternalItems = set(self.externalItems[j1:j2])
-                    if replaceditem in replacedExternalItems:
-                        if replaceditem in replacedWorkItems:
-                            self._transfer([replaceditem])
+                renamedExternalEntriesToReplace = self._renamedExternalEntries[j1:j2]
+                _log.debug("  external to replace: %s", renamedExternalEntriesToReplace)
+                workEntriesToReplace = self.workEntries[i1:i2]
+                _log.debug("  work to replace: %s", workEntriesToReplace)
+                allEntries = set(self.workEntries[i1:i2]) | set(self._renamedExternalEntries[j1:j2])
+                for replacedEntry in allEntries:
+                    replacedWorkEntries = set(self.workEntries[i1:i2])
+                    replacedRenamedExternalEntries = set(self._renamedExternalEntries[j1:j2])
+                    if replacedEntry in replacedRenamedExternalEntries:
+                        if replacedEntry in replacedWorkEntries:
+                            self._transfer([replacedEntry])
                         else:
-                            self._add([replaceditem])
+                            self._add([replacedEntry])
                     else:
-                        assert replaceditem in replacedWorkItems, "item must be at least in external or work items: %s" % replaceditem
-                        self._remove([replaceditem])
+                        assert replacedEntry in replacedWorkEntries, 'entry must be at least in external or work entries: %s' % replacedEntry
+                        self._remove([replacedEntry])
             else:
                 assert False, "operation=%r" % operation
 
-    def _createNameAndKindToListOfFolderItemsMap(self, items):
+    def _createNameAndKindToListOfFolderItemsMap(self, entries):
         result = {}
-        for item in items:
-            itemName = item.name
-            itemKind = item.kind
-            itemKey = (itemName, itemKind)
-            existingItems = result.get(itemKey)
-            if existingItems is None:
-                result[itemKey] = [item]
+        for entry in entries:
+            entryName = entry.name
+            entryKind = entry.kind
+            entryKey = (entryName, entryKind)
+            existingEntries = result.get(entryKey)
+            if existingEntries is None:
+                result[entryKey] = [entry]
             else:
-                existingItems.append(item)
+                existingEntries.append(entry)
         return result
 
-    def _setCopiedAndMovedItems(self):
+    def _setCopiedAndMovedEntries(self):
         assert self._externalFolderPath is not None
-        assert self.workItems is not None
-        assert self.externalItems is not None
+        assert self.workEntries is not None
+        assert self.externalEntries is not None
 
         self._copiedItems = []
         self._entriesToMove = []
         removedNameMap = self._createNameAndKindToListOfFolderItemsMap(self._entriesToRemove)
         addedNameMap = self._createNameAndKindToListOfFolderItemsMap(self._entriesToAdd)
 
-        for possiblyMovedItemKey, possiblyMovedItems in addedNameMap.items():
-            possiblyMovedItemKind = possiblyMovedItemKey[1]
-            correspondingRemovedItems = removedNameMap.get(possiblyMovedItemKey)
-            if correspondingRemovedItems:
-                # TODO: Process all moved items of the same name as long as there is both an added and removed item.
-                if possiblyMovedItemKind == antglob.FileSystemEntry.File:
-                        sourceItem = correspondingRemovedItems[0]
-                        targetItem = possiblyMovedItems[0]
-                        _log.debug('schedule for move: "%s" to "%s"', sourceItem.relativePath, targetItem.relativePath)
-                        self._entriesToRemove.remove(sourceItem)
-                        self._entriesToAdd.remove(targetItem)
-                        self._entriesToMove.append((sourceItem, targetItem))
+        for possiblyMovedEntryKey, possiblyMovedEntries in addedNameMap.items():
+            possiblyMovedEntryKind = possiblyMovedEntryKey[1]
+            correspondingRemovedEntries = removedNameMap.get(possiblyMovedEntryKey)
+            if correspondingRemovedEntries:
+                # TODO: Process all moved entries of the same name as long as there is both an added and removed entry.
+                if possiblyMovedEntryKind == antglob.FileSystemEntry.File:
+                        removedSourceEntry = correspondingRemovedEntries[0]
+                        addedTargetEntry = possiblyMovedEntries[0]
+                        _log.debug('schedule for move: "%s" to "%s"', removedSourceEntry.relativePath, addedTargetEntry.relativePath)
+                        self._entriesToRemove.remove(removedSourceEntry)
+                        self._entriesToAdd.remove(addedTargetEntry)
+                        self._entriesToMove.append((removedSourceEntry, addedTargetEntry))
                 else:
-                    # TODO: Move folders in case the new folder contains all the item from the old folder (and possibly some more).
+                    # TODO: #3: Move folders in case the new folder contains all the entries from the old folder (and possibly some more).
                     pass
 
-    def _applyChangedItems(self, textOptions):
+    def _applyChangedEntries(self, textOptions):
         def _logfilesAndFoldersMessage(operation, entries):
             assert operation
             assert entries is not None
@@ -1381,15 +1428,17 @@ class ScmPuncher(object):
             # Remove folder and files  using a single command call.
             self.scmWork.remove(relativePathsToRemove, recursive=True, force=True)
 
-    def punch(self, externalFolderPath, relativeWorkFolderPath="", textOptions=None, move=MoveName, includePatternText=None, excludePatternText=None, workOnlyPatternText=None):
+    def punch(self, externalFolderPath, relativeWorkFolderPath="", textOptions=None, move=MoveName, names=_Names.Preserve, includePatternText=None, excludePatternText=None, workOnlyPatternText=None):
         assert externalFolderPath is not None
         assert relativeWorkFolderPath is not None
+        assert move in ScmPuncher._ValidMoveModes
+        assert names in _ValidNames
         try:
-            self._setExternalAndWorkItems(externalFolderPath, relativeWorkFolderPath, includePatternText, excludePatternText, workOnlyPatternText)
-            self._setAddedModifiedRemovedItems()
+            self._setExternalAndWorkEntries(externalFolderPath, relativeWorkFolderPath, includePatternText, excludePatternText, workOnlyPatternText)
+            self._setAddedModifiedRemovedItems(names)
             if move != ScmPuncher.MoveNone:
-                self._setCopiedAndMovedItems()
-            self._applyChangedItems(textOptions)
+                self._setCopiedAndMovedEntries()
+            self._applyChangedEntries(textOptions)
         finally:
             self._clear()
 
@@ -1613,8 +1662,8 @@ class ScmWork(object):
 
     def listFolderItems(self, relativeFolderToList="", patternSetToMatch=None):
         """
-        List of folder items starting with ``relativeFolderPathToList`` excluding special items
-        used internally by the SCM (such as for example ".svn" for Subversion).
+        List of file system entries starting with ``relativeFolderPathToList`` excluding special
+        entries used internally by the SCM (such as for example ".svn" for Subversion).
         """
         if patternSetToMatch:
             actualPatternSetToMatch = patternSetToMatch
@@ -1669,9 +1718,9 @@ def createScmWork(workFolderPath):
     result = ScmWork(scmStorage, "", workFolderPath, ScmWork.CheckOutActionSkip)
     return result
 
-def listRelativePaths(folderToListPath, elements=[]):
+def listRelativePaths(folderToListPath, parts=[]):
     for folderItem in os.listdir(folderToListPath):
-        itemElements = list(elements)
+        itemElements = list(parts)
         itemElements.append(folderItem)
         itemPath = os.path.join(folderToListPath, folderItem)
         # TODO: Ignore special paths such as ".svn"
@@ -1682,10 +1731,13 @@ def listRelativePaths(folderToListPath, elements=[]):
         else:
                 yield ('file', tuple(itemElements))
 
-def scunch(sourceFolderPath, scmWork, textOptions=None, move=ScmPuncher.MoveName, includePatternText=None, excludePatternText=None, workOnlyPatternText=None):
+def scunch(sourceFolderPath, scmWork, textOptions=None, move=ScmPuncher.MoveName, names=_Names.Preserve, includePatternText=None, excludePatternText=None, workOnlyPatternText=None):
     assert sourceFolderPath is not None
+    assert move in ScmPuncher._ValidMoveModes
+    assert names in _ValidNames
+
     puncher = ScmPuncher(scmWork)
-    puncher.punch(sourceFolderPath, "", textOptions, move=move, includePatternText=includePatternText, excludePatternText=excludePatternText, workOnlyPatternText=workOnlyPatternText)
+    puncher.punch(sourceFolderPath, "", textOptions, move=move, names=names, includePatternText=includePatternText, excludePatternText=excludePatternText, workOnlyPatternText=workOnlyPatternText)
 
 _NameToLogLevelMap = {
     'debug': logging.DEBUG,
@@ -1743,11 +1795,12 @@ def parsedOptions(arguments):
     punchGroup.add_option("-a", "--after", default=_Actions.None_, dest="actionsToPerformAfterPunching", metavar="ACTION", help=u'action(s) to perform after punching: %s (default: \'%%default\')' % _tools.humanReadableList(_ValidAfterActions))
     punchGroup.add_option("-b", "--before", default=_Actions.Check, dest="actionsToPerformBeforePunching", metavar="ACTION", help=u'action(s) to perform before punching: %s (default: \'%%default\')' % _tools.humanReadableList(_ValidBeforeActions))
     punchGroup.add_option("-d", "--depot", dest="depotQualifier", metavar="QUALIFIER", help=u'qualifier for source code depot when using --before=checkout')
-    punchGroup.add_option("-i", "--include", dest="includePattern", metavar="PATTERN", help=u'ant pattern for file to include (default: all files)')
-    punchGroup.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help=u'text for commit message (default: "%default")')
-    punchGroup.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help=u'criteria to detect moved files: %s (default: "%%default")' % _tools.humanReadableList(ScmPuncher._ValidMoveModes))
+    punchGroup.add_option("-f", "--names", default=_Names.Preserve, dest="nameTransformation", metavar="MODE", help=u'transformation to apply on names in work copy: %s (default: \'%%default\')' % _tools.humanReadableList(sorted(_ValidNames)))
+    punchGroup.add_option("-i", "--include", dest="includePattern", metavar="PATTERN", help=u'ant pattern for files and folders to include (default: all files)')
+    punchGroup.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help=u'text for commit message (default: \'%default\')')
+    punchGroup.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help=u'criteria to detect moved files: %s (default: \'%%default\')' % _tools.humanReadableList(ScmPuncher._ValidMoveModes))
     punchGroup.add_option("-w", "--work-only", dest="workOnlyPattern", metavar="PATTERN", help=u'ant pattern for files that only reside in work copy but still should remain (default: none)')
-    punchGroup.add_option("-x", "--exclude", dest="excludePattern", metavar="PATTERN", help=u'ant pattern for file to exclude (default: exclude no files but the default excludes)')
+    punchGroup.add_option("-x", "--exclude", dest="excludePattern", metavar="PATTERN", help=u'ant pattern for files and folders to exclude (default: exclude no files but the default excludes)')
     parser.add_option_group(punchGroup)
     textGroup = optparse.OptionGroup(parser, u"Text file conversion options")
     # Note: --newline does not use default='native' because it is allowed to have a value only
@@ -1759,7 +1812,7 @@ def parsedOptions(arguments):
     textGroup.add_option("-T", "--tabsize", default=TextOptions.PreserveTabs, dest="tabSize", metavar="NUMBER", type=long, help=u'number of spaces to allign tabs with in --text files; %d=keep tab (default: %%default)' % TextOptions.PreserveTabs)
     parser.add_option_group(textGroup)
     consoleGroup = optparse.OptionGroup(parser, u"Console and logging options")
-    consoleGroup.add_option("-e", "--encoding", default='auto', help=u'encoding to use for running console commands (default: "%default")')
+    consoleGroup.add_option("-e", "--encoding", default='auto', help=u'encoding to use for running console commands (default: \'%default\')')
     consoleGroup.add_option("-L", "--log", default='info', dest="logLevel", metavar="LEVEL", type="choice", choices=sorted(_NameToLogLevelMap.keys()), help=u'logging level: %s (default: \'%%default\')' % _tools.humanReadableList(sorted(_NameToLogLevelMap.keys())))
     consoleGroup.add_option("-n", "--normalize", default='auto', dest="unicodeNormalization", metavar="FORM", type="choice", choices=sorted(_ValidConsoleNormalizations), help=u'uncode normalization to use for running console commands: %s (default: \'%%default\')' % _tools.humanReadableList(_ValidConsoleNormalizations))
     parser.add_option_group(consoleGroup)
@@ -1863,7 +1916,7 @@ def main(arguments=None):
                 assert action == _Actions.None_, "action=%r" % action
 
         # Actually punch work copy.
-        scunch(sourceFolderPath, scmWork, textOptions, move=options.moveMode, includePatternText=options.includePattern, excludePatternText=options.excludePattern, workOnlyPatternText=options.workOnlyPattern)
+        scunch(sourceFolderPath, scmWork, textOptions, move=options.moveMode, names=options.nameTransformation, includePatternText=options.includePattern, excludePatternText=options.excludePattern, workOnlyPatternText=options.workOnlyPattern)
 
         # Perform actions after punching.
         for action in actionsToPerformAfterPunching:

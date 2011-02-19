@@ -49,10 +49,10 @@ class _ScmTest(unittest.TestCase):
     def setUp(self):
         scunch._setUpEncoding()
 
-    def setUpProject(self, project, testFolderPath=_BaseTestFolder):
+    def setUpEmptyProject(self, project, testFolderPath=_BaseTestFolder):
         """
         Create a local repository for ``project``, possibly removing any existing repository
-        before. Next, checkout a working copy in ``testFolderPath``.
+        before.
         """
         assert project
         assert testFolderPath
@@ -107,12 +107,12 @@ class _ScmTest(unittest.TestCase):
                 
         
 class _SvnTest(_ScmTest):
-    def setUpProject(self, project, testFolderPath=_BaseTestFolder):
+    def setUpEmptyProject(self, project, testFolderPath=_BaseTestFolder):
         """
-        Create a Subversion repository containing a few files and a work copy with its current
-        contents checked out.
+        Create an empty Subversion repository and an empty work copy with its current contents
+        checked out.
         """
-        super(_SvnTest, self).setUpProject(project, testFolderPath)
+        super(_SvnTest, self).setUpEmptyProject(project, testFolderPath)
         storagePath = os.path.join(self.testFolderPath, "svnRepository", self.project)
         self.scmDepotQualifier = urljoin("file://localhost/", storagePath)
         self.scmDepot = scunch.ScmStorage(self.scmDepotQualifier)
@@ -125,6 +125,12 @@ class _SvnTest(_ScmTest):
         self.workFolderPath = os.path.join(self.workBaseFolderPath, self.project)
         self.scmWork = scunch.ScmWork(self.scmDepot, "trunk", self.workFolderPath, scunch.ScmWork.CheckOutActionReset)
 
+    def setUpProject(self, project, testFolderPath=_BaseTestFolder):
+        """
+        Create a Subversion repository containing a few files and a work copy with its current
+        contents checked out.
+        """
+        self.setUpEmptyProject(project, testFolderPath)
         # Create a few files in the project root folder.
         helloPyPath = self.scmWork.absolutePath("test file path", "hello.py")
         self.writeTextFile(helloPyPath, ["# A classic.", "print 'hello world!'"])
@@ -410,7 +416,7 @@ class ScmPuncherTest(_SvnTest):
     def setUp(self):
         scunch._setUpEncoding()
 
-    def _testAfterPunch(self, externalFolderPath, textOptions=None):
+    def _testAfterPunch(self, externalFolderPath, textOptions=None, names=scunch._Names.Preserve):
         """
         Test that previously punched changes can be committed and a re-punch results in no further changes.
         """
@@ -419,9 +425,9 @@ class ScmPuncherTest(_SvnTest):
         
         self.scmWork.commit([""], "Punched recent changes.")
         rePuncher = scunch.ScmPuncher(self.scmWork)
-        rePuncher.punch(externalFolderPath, textOptions=textOptions)
+        rePuncher.punch(externalFolderPath, textOptions=textOptions, names=names)
         self.assertNonNormalStatus({})
-        self.assertEqual(rePuncher.workItems, rePuncher.externalItems)
+        self.assertEqual(rePuncher.workEntries, rePuncher.externalEntries)
 
     def testPunchWithClone(self):
         self.setUpProject("punchWithClone")
@@ -433,10 +439,52 @@ class ScmPuncherTest(_SvnTest):
         cloningPuncher = scunch.ScmPuncher(scmWork)
         cloningPuncher.punch(testPunchWithClonePath)
 
-        self.assertEqual(cloningPuncher.workItems, cloningPuncher.externalItems)
+        self.assertEqual(cloningPuncher.workEntries, cloningPuncher.externalEntries)
 
         self.assertNonNormalStatus({})
         self._testAfterPunch(testPunchWithClonePath)
+
+    def testPunchWithLowerCopy(self):
+        self.setUpEmptyProject("punchWithLowerCopy")
+        externalPunchWithLowerCopyPath = self.createTestFolder("externalPunchWithLowerCopy")
+
+        def writeEmptyTxtFile(relativeFilePath):
+            fullFilePath = os.path.join(externalPunchWithLowerCopyPath, relativeFilePath)
+            self.writeTextFile(fullFilePath, [])
+
+        def writeLowerTxtFile(relativeFolderPath=""):
+            relativeFilePath = os.path.join(relativeFolderPath, "lower.txt")
+            writeEmptyTxtFile(relativeFilePath)
+
+        def writeMixedTxtFile(relativeFolderPath=""):
+            relativeFilePath = os.path.join(relativeFolderPath, "MiXeD.tXt")
+            writeEmptyTxtFile(relativeFilePath)
+
+        def writeUpperTxtFile(relativeFolderPath=""):
+            relativeFilePath = os.path.join(relativeFolderPath, "UPPER.TXT")
+            writeEmptyTxtFile(relativeFilePath)
+
+        def writeAllTxtFiles(relativeFolderPath=''):
+            writeLowerTxtFile(relativeFolderPath)
+            writeMixedTxtFile(relativeFolderPath)
+            writeUpperTxtFile(relativeFolderPath)
+
+        # Create test files and folders with names with different cases.
+        writeAllTxtFiles()
+        _tools.makeEmptyFolder(os.path.join(externalPunchWithLowerCopyPath, "lower"))
+        writeAllTxtFiles('lower')
+        _tools.makeEmptyFolder(os.path.join(externalPunchWithLowerCopyPath, "MiXeD"))
+        writeAllTxtFiles('MiXeD')
+        _tools.makeEmptyFolder(os.path.join(externalPunchWithLowerCopyPath, "UPPER"))
+        writeAllTxtFiles('UPPER')
+        
+        modifyingPuncher = scunch.ScmPuncher(self.scmWork)
+        modifyingPuncher.punch(externalPunchWithLowerCopyPath, names=scunch._Names.Lower)
+
+        self.assertEqual(modifyingPuncher.workEntries, modifyingPuncher.externalEntries)
+
+        self.assertNonNormalStatus({scunch.ScmStatus.Added: 15})
+        self._testAfterPunch(externalPunchWithLowerCopyPath, names=scunch._Names.Lower)
 
     def testPunchWithModify(self):
         self.setUpProject("punchWithModify")
@@ -450,7 +498,7 @@ class ScmPuncherTest(_SvnTest):
         modifyingPuncher = scunch.ScmPuncher(scmWork)
         modifyingPuncher.punch(testPunchWithModifyPath)
 
-        self.assertEqual(modifyingPuncher.workItems, modifyingPuncher.externalItems)
+        self.assertEqual(modifyingPuncher.workEntries, modifyingPuncher.externalEntries)
 
         self.assertNonNormalStatus({scunch.ScmStatus.Modified: 1})
         self._testAfterPunch(testPunchWithModifyPath)

@@ -133,14 +133,9 @@ class FileSystemEntry(object):
     def __init__(self, baseFolderPath="", parts=[]):
         assert parts is not None
         assert baseFolderPath is not None
-        
-        self.parts = tuple(parts)
-        if self.parts:
-            self.name = self.parts[-1]
-        else:
-            self.name = ""
-        self.relativePath = resolvedPathParts(self.parts)
-        self.path = self.absolutePath(baseFolderPath)
+
+        self._baseFolderPath = baseFolderPath
+        self.setParts(parts)
         try:
             entryInfo = os.stat(self.path)
         except OSError, error:
@@ -158,6 +153,20 @@ class FileSystemEntry(object):
         self.size = entryInfo.st_size
         self.timeModified = entryInfo.st_mtime
 
+    def setParts(self, parts):
+        """
+        Update ``parts`` and related properties to represent transformed names, for example all
+        lower case names, but preserve properties related to file statistics.
+        """
+        assert parts is not None
+        self.parts = tuple(parts)
+        if self.parts:
+            self.name = self.parts[-1]
+        else:
+            self.name = ""
+        self.relativePath = resolvedPathParts(self.parts)
+        self.path = self.absolutePath(self._baseFolderPath)
+        
     def absolutePath(self, baseFolderPath):
         assert baseFolderPath is not None
         return os.path.join(baseFolderPath, self.relativePath)
@@ -562,7 +571,7 @@ class AntPatternSet(object):
                 else:
                     # Without include pattern, yield everything.
                     yield pathToExamine
-        if addFolders and not foundMatchingFilesOrSubFolders and self.matches(relativeFolderPath):
+        if addFolders and not foundMatchingFilesOrSubFolders and self.matches(relativeFolderPath) and relativeFolderPath:
             # If no files or sub folders could be found but the folder itself matches, yield it.
             yield _asFolderPath(relativeFolderPath)
 
@@ -590,7 +599,7 @@ class AntPatternSet(object):
 
     def ifind(self, folderToScanPath=os.getcwdu(), addFolders=False):
         """
-        Like `find()` but iterates over `folderToScanPath` instead of returning a list of paths.
+        Like `find()` but iterates over ``folderToScanPath`` instead of returning a list of paths.
         """
         assert folderToScanPath is not None
         for relativePath in self._findInFolder(folderToScanPath, addFolders):
