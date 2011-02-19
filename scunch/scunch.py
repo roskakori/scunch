@@ -1017,7 +1017,7 @@ class ScmStorage(object):
         scmCommand.extend(self.absoluteQualifiers(relativeQualifiersToCreate))
         run(scmCommand)
 
-def _sortedFileSystemEntries(folderItemsToSort):
+def _sortedFileSystemEntries(entriesToSort):
     def comparedFileSystemEntries(some, other):
         assert some is not None
         assert other is not None
@@ -1030,10 +1030,10 @@ def _sortedFileSystemEntries(folderItemsToSort):
             result = cmp(some.parts, other.parts)
         return result
 
-    assert folderItemsToSort is not None
+    assert entriesToSort is not None
     result = []
-    for item in folderItemsToSort:
-        result.append(item)
+    for entry in entriesToSort:
+        result.append(entry)
     result = sorted(result, comparedFileSystemEntries)
     return result
 
@@ -1129,7 +1129,7 @@ class ScmPuncher(object):
         self.workEntries = None
         self._externalFolderPath = None
         self._entriesToAdd = None
-        self._copiedItems = None
+        self._entriesToCopy = None
         self._entriesToTransfer = None
         self._entriesToMove = None
         self._entriesToRemove = None
@@ -1145,56 +1145,57 @@ class ScmPuncher(object):
                     result = True
         return result
 
-    def _workPathFor(self, folderItem):
-        assert folderItem is not None
-        return folderItem.absolutePath(self.scmWork.localTargetPath)
+    def _workPathFor(self, fileSystemEntry):
+        assert fileSystemEntry is not None
+        return fileSystemEntry.absolutePath(self.scmWork.localTargetPath)
 
-    def _externalPathFor(self, folderItem):
-        assert folderItem is not None
+    def _externalPathFor(self, renamedExternalEntry):
+        assert renamedExternalEntry is not None
         assert self._externalFolderPath is not None
-        return folderItem.absolutePath(self._externalFolderPath)
+        originalExternalEntry = self._renamedToOriginalExternalEntriesMap[renamedExternalEntry]
+        return originalExternalEntry.absolutePath(self._externalFolderPath)
 
-    def _assertScheduledItemIsUnique(self, itemToSchedule, operation):
+    def _assertScheduledItemIsUnique(self, entryToSchedule, operation):
         """
-        Assert that a folder item ``itemToSchedule` scheduled for ``operation`` has not been
+        Assert that a folder item ``entryToSchedule` scheduled for ``operation`` has not been
         scheduled for any other operation so far.
         """
-        assert itemToSchedule is not None
+        assert entryToSchedule is not None
         assert operation in ('add', 'copy', 'move', 'remove', 'transfer')
         # TODO: Change self._*Items from list to set for faster lookup.
-        assert (self._entriesToAdd is None) or (itemToSchedule not in self._entriesToAdd, "item scheduled to %s has already been added: %s" % (operation, itemToSchedule))
-        assert (self._copiedItems is None) or (itemToSchedule not in self._copiedItems, "item scheduled to %s has already been copied: %s" % (operation, itemToSchedule))
-        assert (self._entriesToTransfer is None) or (itemToSchedule not in self._entriesToTransfer, "item scheduled to %s has already been transferred: %s" % (operation, itemToSchedule))
-        assert (self._entriesToMove is None) or (itemToSchedule not in self._entriesToMove, "item scheduled to %s has already been moved: %s" % (operation, itemToSchedule))
-        assert (self._entriesToRemove is None) or (itemToSchedule not in self._entriesToRemove, "item scheduled to %s has already been removed: %s" % (operation, itemToSchedule))
+        assert (self._entriesToAdd is None) or (entryToSchedule not in self._entriesToAdd, "entry scheduled to %s has already been added: %s" % (operation, entryToSchedule))
+        assert (self._entriesToCopy is None) or (entryToSchedule not in self._entriesToCopy, "entry scheduled to %s has already been copied: %s" % (operation, entryToSchedule))
+        assert (self._entriesToTransfer is None) or (entryToSchedule not in self._entriesToTransfer, "entry scheduled to %s has already been transferred: %s" % (operation, entryToSchedule))
+        assert (self._entriesToMove is None) or (entryToSchedule not in self._entriesToMove, "entry scheduled to %s has already been moved: %s" % (operation, entryToSchedule))
+        assert (self._entriesToRemove is None) or (entryToSchedule not in self._entriesToRemove, "entry scheduled to %s has already been removed: %s" % (operation, entryToSchedule))
 
-    def _add(self, items):
-        for itemToAdd in items:
-            if not self._isInLastRemovedFolder(itemToAdd):
-                _log.debug('schedule item for add: "%s"', itemToAdd.relativePath)
-                self._assertScheduledItemIsUnique(itemToAdd, 'add')
-                self._entriesToAdd.append(itemToAdd)
+    def _add(self, entries):
+        for entryToAdd in entries:
+            if not self._isInLastRemovedFolder(entryToAdd):
+                _log.debug('schedule entry for add: "%s"', entryToAdd.relativePath)
+                self._assertScheduledItemIsUnique(entryToAdd, 'add')
+                self._entriesToAdd.append(entryToAdd)
             else:
-                _log.debug('skip added item in removed folder: "%s"', itemToAdd.relativePath)
+                _log.debug('skip added entry in removed folder: "%s"', entryToAdd.relativePath)
 
-    def _remove(self, items):
-        for itemToRemove in items:
-            if not self._isInLastRemovedFolder(itemToRemove):
-                _log.debug('schedule item for remove: "%s"', itemToRemove.relativePath)
-                self._assertScheduledItemIsUnique(itemToRemove, 'remove')
-                self._entriesToRemove.append(itemToRemove)
+    def _remove(self, entries):
+        for entryToRemove in entries:
+            if not self._isInLastRemovedFolder(entryToRemove):
+                _log.debug('schedule entry for remove: "%s"', entryToRemove.relativePath)
+                self._assertScheduledItemIsUnique(entryToRemove, 'remove')
+                self._entriesToRemove.append(entryToRemove)
             else:
-                _log.debug('skip removed item in removed folder: "%s"', itemToRemove.relativePath)
+                _log.debug('skip removed entry in removed folder: "%s"', entryToRemove.relativePath)
 
-    def _transfer(self, items):
-        for itemToTransfer in items:
-            if not self._isInLastRemovedFolder(itemToTransfer):
-                # TODO: Add option to consider items modified by only checking their date.
-                _log.debug('schedule item for transfer: "%s"', itemToTransfer.relativePath)
-                self._assertScheduledItemIsUnique(itemToTransfer, 'transfer')
-                self._entriesToTransfer.append(itemToTransfer)
+    def _transfer(self, entries):
+        for entryToTransfer in entries:
+            if not self._isInLastRemovedFolder(entryToTransfer):
+                # TODO: Add option to consider entries modified by only checking their date.
+                _log.debug('schedule entry for transfer: "%s"', entryToTransfer.relativePath)
+                self._assertScheduledItemIsUnique(entryToTransfer, 'transfer')
+                self._entriesToTransfer.append(entryToTransfer)
             else:
-                _log.debug('skip transferable item in removed folder: "%s"', itemToTransfer.relativePath)
+                _log.debug('skip transferable entry in removed folder: "%s"', entryToTransfer.relativePath)
 
     def _copyTextFile(self, sourceFilePath, targetFilePath, textOptions):
         assert textOptions is not None
@@ -1205,14 +1206,14 @@ class ScmPuncher(object):
                     targetFile.write(lineToWrite)
         # TODO: Copy attributes similar to `shutil.copy2()`.
 
-    def _transferItemFromExternalToWork(self, itemToTransfer, textOptions):
-        assert itemToTransfer is not None
-        externalPathOfItemToTransferFrom = self._externalPathFor(itemToTransfer)
-        workPathOfItemToTransferTo = self._workPathFor(itemToTransfer)
-        if textOptions and textOptions.isText(itemToTransfer):
-            self._copyTextFile(externalPathOfItemToTransferFrom, workPathOfItemToTransferTo, textOptions)
+    def _transferEntryFromExternalToWork(self, entryToTransfer, textOptions):
+        assert entryToTransfer is not None
+        externalPathOfEntryToTransferFrom = self._externalPathFor(entryToTransfer)
+        workPathOfItemToTransferTo = self._workPathFor(entryToTransfer)
+        if textOptions and textOptions.isText(entryToTransfer):
+            self._copyTextFile(externalPathOfEntryToTransferFrom, workPathOfItemToTransferTo, textOptions)
         else:
-            shutil.copy2(externalPathOfItemToTransferFrom, workPathOfItemToTransferTo)
+            shutil.copy2(externalPathOfEntryToTransferFrom, workPathOfItemToTransferTo)
 
     def _setExternalAndWorkEntries(self, externalFolderPath, relativeWorkFolderPath, includePatternText, excludePatternText, workOnlyPatternText):
         assert externalFolderPath is not None
@@ -1283,11 +1284,10 @@ class ScmPuncher(object):
                 # FIXME: Enable exception: raise ScmError('name clash must be resolved: "%s" and "%s"' % (existingRenamedExternalEntry.path, renamedExternalEntry.path))
             self._renamedToOriginalExternalEntriesMap[renamedExternalEntry] = externalEntry
             self._renamedExternalEntries.append(renamedExternalEntry)
-        self._renamedExternalEntries = sorted(self._renamedExternalEntries)
+        self._renamedExternalEntries = _sortedFileSystemEntries(self._renamedExternalEntries)
         assert len(self.externalEntries) == len(self._renamedExternalEntries)
         # FIXME: Enable assertion: assert len(self.externalEntries) == len(self._renamedToOriginalExternalEntriesMap)
 
-        self.workEntries = sorted(self.workEntries)
         matcher = difflib.SequenceMatcher(None, self.workEntries, self._renamedExternalEntries)
         _log.debug("matcher: %s", matcher.get_opcodes())
         _log.debug('  work=%s', self.workEntries)
@@ -1342,7 +1342,7 @@ class ScmPuncher(object):
         assert self.workEntries is not None
         assert self.externalEntries is not None
 
-        self._copiedItems = []
+        self._entriesToCopy = []
         self._entriesToMove = []
         removedNameMap = self._createNameAndKindToListOfFolderItemsMap(self._entriesToRemove)
         addedNameMap = self._createNameAndKindToListOfFolderItemsMap(self._entriesToAdd)
@@ -1395,7 +1395,7 @@ class ScmPuncher(object):
                     _tools.makeFolder(self._workPathFor(entryToTransfer))
                 else:
                     _log.info('  transfer "%s"', entryToTransfer.relativePath)
-                    self._transferItemFromExternalToWork(entryToTransfer, textOptions)
+                    self._transferEntryFromExternalToWork(entryToTransfer, textOptions)
         if self._entriesToAdd:
             _logfilesAndFoldersMessage('add', self._entriesToAdd)
             relativePathsToAdd = []
@@ -1407,7 +1407,7 @@ class ScmPuncher(object):
                 if entryToAdd.kind == antglob.FileSystemEntry.Folder:
                     _tools.makeFolder(self._workPathFor(entryToAdd))
                 else:
-                    self._transferItemFromExternalToWork(entryToAdd, textOptions)
+                    self._transferEntryFromExternalToWork(entryToAdd, textOptions)
             # Add folders and files to SCM using a single command call.
             self.scmWork.add(relativePathsToAdd, recursive=False)
         if self._entriesToMove:
@@ -1417,7 +1417,7 @@ class ScmPuncher(object):
                 targetPath = os.path.dirname(targetEntryToMove.relativePath)
                 _log.info('  move "%s" from "%s" to "%s"', os.path.basename(sourcePath), os.path.dirname(sourcePath), targetPath)
                 self.scmWork.move(sourcePath, targetPath, force=True)
-                self._transferItemFromExternalToWork(targetEntryToMove, textOptions)
+                self._transferEntryFromExternalToWork(targetEntryToMove, textOptions)
         if self._entriesToRemove:
             _logfilesAndFoldersMessage('remove', self._entriesToRemove)
             relativePathsToRemove = []
