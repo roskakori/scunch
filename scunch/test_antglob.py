@@ -183,7 +183,22 @@ class AntPatternSetFindTest(unittest.TestCase):
                 testFile.write(os.linesep)
         finally:
             testFile.close()
-        
+
+    def testFindFolderOnlyOnce(self):
+        textSet = antglob.AntPatternSet()
+        textSet.include("**/*.txt")
+        testFolderPath = tempfile.mkdtemp(prefix="test_antpattern_")
+        someFolderPath = os.path.join(testFolderPath, "some")
+        os.mkdir(someFolderPath)
+        with open(os.path.join(testFolderPath, "other.txt"), "wb"):
+            # Just create an empty file.
+            pass
+        with open(os.path.join(someFolderPath, "some.txt"), "wb"):
+            # Just create an empty file.
+            pass
+        entries = textSet.findEntries(testFolderPath)
+        self.assertEqual(3, len(entries))
+
     def testFindPatternSet(self):
         pythonSet = antglob.AntPatternSet()
         pythonSet.include("**/*.py, **/*.rst")
