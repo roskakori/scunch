@@ -574,6 +574,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Version history
 ===============
 
+**Version 0.5.3, 2011-02-20**
+
+* #18: Added transformations of file and folder names, use for example
+  ``--names=lower``.
+* #19: Fixed duplicate processing of punched folders in root folder.
+
 **Version 0.5.2, 2011-02-17**
 
 * #16: Fixed moving of files in moved folders, during which the containing folder
@@ -836,6 +842,12 @@ class ScmPendingChangesError(Exception):
     """
     pass
 
+class ScmNameClashError(Exception):
+    """
+    Error raised whan an SCM operation results in a name clash.
+    """
+    pass
+
 class ScmStatus(object):
     Added = "added"
     Conflicted = "conflicted"
@@ -1031,9 +1043,9 @@ def _sortedFileSystemEntries(entriesToSort):
         return result
 
     assert entriesToSort is not None
-    result = []
+    result = set()
     for entry in entriesToSort:
-        result.append(entry)
+        result.update([entry])
     result = sorted(result, comparedFileSystemEntries)
     return result
 
@@ -1280,13 +1292,12 @@ class ScmPuncher(object):
             renamedExternalEntry = self._createTransformedFileSystemEntry(externalEntry, names)
             existingRenamedExternalEntry = self._renamedToOriginalExternalEntriesMap.get(renamedExternalEntry)
             if existingRenamedExternalEntry:
-                _log.warning('name clash should be resolved: "%s" and "%s"', existingRenamedExternalEntry.path, renamedExternalEntry.path)
-                # FIXME: Enable exception: raise ScmError('name clash must be resolved: "%s" and "%s"' % (existingRenamedExternalEntry.path, renamedExternalEntry.path))
+                raise ScmNameClashError('name clash must be resolved: "%s" and "%s"' % (existingRenamedExternalEntry.path, renamedExternalEntry.path))
             self._renamedToOriginalExternalEntriesMap[renamedExternalEntry] = externalEntry
             self._renamedExternalEntries.append(renamedExternalEntry)
         self._renamedExternalEntries = _sortedFileSystemEntries(self._renamedExternalEntries)
         assert len(self.externalEntries) == len(self._renamedExternalEntries)
-        # FIXME: Enable assertion: assert len(self.externalEntries) == len(self._renamedToOriginalExternalEntriesMap)
+        assert len(self.externalEntries) == len(self._renamedToOriginalExternalEntriesMap)
 
         matcher = difflib.SequenceMatcher(None, self.workEntries, self._renamedExternalEntries)
         _log.debug("matcher: %s", matcher.get_opcodes())

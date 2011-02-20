@@ -486,6 +486,32 @@ class ScmPuncherTest(_SvnTest):
         self.assertNonNormalStatus({scunch.ScmStatus.Added: 15})
         self._testAfterPunch(externalPunchWithLowerCopyPath, names=scunch._Names.Lower)
 
+    def testPunchWithLowerNameClash(self):
+        self.setUpEmptyProject("punchWithLowerNameClash")
+        externalPunchWithLowerNameClashPath = self.createTestFolder("externalPunchWithLowerNameClash")
+
+        def writeEmptyTxtFile(relativeFilePath):
+            fullFilePath = os.path.join(externalPunchWithLowerNameClashPath, relativeFilePath)
+            self.writeTextFile(fullFilePath, [])
+
+        # Create test files and folders with names with different cases.
+        writeEmptyTxtFile("some.txt")
+        writeEmptyTxtFile("SoMe.TxT")
+        
+        hasLowerSomeTxt = False
+        hasMixedSomeTxt = False
+        for name in os.listdir(externalPunchWithLowerNameClashPath):
+            if name == 'some.txt':
+                hasLowerSomeTxt = True
+            elif name == 'SoMe.TxT':
+                hasMixedSomeTxt = True
+
+        if hasLowerSomeTxt and hasMixedSomeTxt:
+            clashingPuncher = scunch.ScmPuncher(self.scmWork)
+            self.assertRaises(scunch.ScmNameClashError, clashingPuncher.punch, externalPunchWithLowerNameClashPath, names=scunch._Names.Lower)
+        else:
+            _log.info('skipping test on case insensitive file system: %s', 'testPunchWithLowerNameClash')
+
     def testPunchWithModify(self):
         self.setUpProject("punchWithModify")
         scmWork = self.scmWork
