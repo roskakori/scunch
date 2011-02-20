@@ -148,6 +148,7 @@ does not exist in the external folder, it would be removed as soon as
 Note that this example does not use the "**" place holder because only
 files in the work copy's top folder are of interest.
 
+
 Preparing the work copy
 -----------------------
 
@@ -243,6 +244,42 @@ Possible move modes are:
 
 * ``name`` (the default): move files with identical names.
 * ``none``: use add/remove instead if move.
+
+
+Transforming names
+------------------
+
+Especially when punching sources from 3rd parties sometimes some letters of
+file or folder names change from lower case to upper case or the other way
+around. For example, a file called ``some.txt`` might be named ``Some.txt``
+the next time around.
+
+On a case sensitive file system (for instance most Unix file systems), this
+result in the SCM to not make the connection between the two files and
+starting a new change history. On a case insensitive file system (such as
+the standard file systems for Mac OS X and Windows), the SCM gets seriously
+confused because it is made to believe there are to files but the file
+system can only store one of them at a time.
+
+In order to prevent this, you can tell ``scunch`` to transform names of
+files and folders while punching them into a work copy. For example::
+
+  $ scunch --names=lower ...
+
+This converts all names to lower case.
+
+Possible values for ``--names`` are:
+
+* ``preserve`` (the default): keep names as the are
+* ``lower``: transform names to lower case; for example, ``Some.txt``
+  becomes ``some.txt``.
+* ``upper``: transform names to upper case; for example, ``Some.txt``
+  becomes ``SOME.TXT``.
+
+Note that you should specify ``--names`` the first time when starting
+with a new work copy. Renaming existing files and folder by only changing
+the case of letters confuses most SCM's when the work copy resides on a
+case insensitive file system.
 
 
 Dealing with non ASCII file names
