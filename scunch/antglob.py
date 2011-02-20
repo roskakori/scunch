@@ -117,7 +117,13 @@ def _parentOfFolderPath(folderPath):
     assert isFolderPath(folderPath)
     return os.path.dirname(folderPath[:-1])
 
-class AntPatternError(Exception):
+class AntError(Exception):
+    """
+    Error raised when ant options cannot be processed.
+    """
+    pass
+
+class AntPatternError(AntError):
     """
     Error raised if an ant-like pattern is broken or cannot be processed.
     """
@@ -542,14 +548,14 @@ class AntPatternSet(object):
         assert baseFolderPath is not None
         assert relativeFolderParts is not None
         assert relativeFolderPath is not None
-        if relativeFolderPath.startswith(os.sep):
-            raise ValueError("relative path must not start with %r: %r" % (os.sep, relativeFolderPath))
+        if os.path.isabs(relativeFolderPath):
+            raise AntError("path must be a relative path: %r" % relativeFolderPath)
         folderToScanPath = os.path.join(baseFolderPath, relativeFolderPath)
         foundMatchingFilesOrSubFolders = False
         for nameToExamine in os.listdir(folderToScanPath):
             pathToExamine = os.path.join(relativeFolderPath, nameToExamine)
-            if pathToExamine.startswith(os.sep):
-                raise ValueError("pathToExamine must not start with %r: %r" % (os.sep, pathToExamine))
+            if os.path.isabs(pathToExamine):
+                raise AntError("pathToExamine must be a relative path: %r" % pathToExamine)
             pathToExamineParts = list(relativeFolderParts)
             pathToExamineParts.append(nameToExamine)
             if self.excludePatterns:
@@ -592,8 +598,8 @@ class AntPatternSet(object):
                         parentFolderPathsToYield.insert(0, containingFolderPath)
                         folderPathsYield.update([containingFolderPath])
                     for containingFolderPath in parentFolderPathsToYield:
-                        if containingFolderPath.startswith(os.sep):
-                            raise ValueError("containingFolderPath must not start with %r: %r" % (os.sep, containingFolderPath))
+                        if os.path.isabs(containingFolderPath):
+                            raise AntError("containingFolderPath must be a relative path: %r" % containingFolderPath)
                         yield _asFolderPath(containingFolderPath)
             yield pathToExamine
 
