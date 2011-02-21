@@ -1163,7 +1163,10 @@ class ScmPuncher(object):
     * Add files that do not exist in the work copy but the folder.
     * Remove files that exist in the work copy but not the folder.
     * Copy other files that exist in both from the folder to the work copy.
+    
+    This class is not thread safe and can only perform one `punch()` at a time.
     """
+    # TODO: Move to class ``MoveModes``.
     MoveName = "name"
     MoveNone = "none"
     _ValidMoveModes = set((MoveName, MoveNone))
@@ -1184,6 +1187,40 @@ class ScmPuncher(object):
         self._entriesToRemove = None
         self._filesToPunchPatternSet = None
         self._workFilesToPreservePatternSet = None
+        self._textOptions=None
+        self._moveMode=ScmPuncher.MoveName
+        self._nameTransformation=_Names.Preserve
+
+    def _getMoveMode(self):
+        return self._moveMode
+
+    def _setMoveMode(self, newValue):
+        assert newValue in ScmPuncher._ValidMoveModes
+        self._moveMode = newValue
+
+    moveMode = property(_getMoveMode, _setMoveMode,
+        'Mode describing when files and folders should be moved instead of removed and added.'
+    )
+
+    def _getTextOptions(self):
+        return self._textOptions
+
+    def _setTextOptions(self, newTextOptions):
+        self._textOptions = newTextOptions
+
+    textOptions = property(_getTextOptions, _setTextOptions,
+        '`TextOptions` describing how to process text files.'
+    )
+    def _getNameTransformation(self):
+        return self._nameTransformation
+
+    def _setNameTransformation(self, newValue):
+        assert newValue in _ValidNames
+        self._nameTransformation = newValue
+
+    nameTransformation = property(_getNameTransformation, _setNameTransformation,
+        'Transformation to change names of files and folders when transferring them from the external folder to the work copy.'
+    )
 
     def _isInLastRemovedFolder(self, itemToCheck):
         result = False
@@ -1476,17 +1513,15 @@ class ScmPuncher(object):
             # Remove folder and files  using a single command call.
             self.scmWork.remove(relativePathsToRemove, recursive=True, force=True)
 
-    def punch(self, externalFolderPath, relativeWorkFolderPath="", textOptions=None, move=MoveName, names=_Names.Preserve, includePatternText=None, excludePatternText=None, workOnlyPatternText=None):
+    def punch(self, externalFolderPath, relativeWorkFolderPath="", includePatternText=None, excludePatternText=None, workOnlyPatternText=None):
         assert externalFolderPath is not None
         assert relativeWorkFolderPath is not None
-        assert move in ScmPuncher._ValidMoveModes
-        assert names in _ValidNames
         try:
             self._setExternalAndWorkEntries(externalFolderPath, relativeWorkFolderPath, includePatternText, excludePatternText, workOnlyPatternText)
-            self._setAddedModifiedRemovedItems(names)
-            if move != ScmPuncher.MoveNone:
+            self._setAddedModifiedRemovedItems(self.nameTransformation)
+            if self.moveMode != ScmPuncher.MoveNone:
                 self._setCopiedAndMovedEntries()
-            self._applyChangedEntries(textOptions)
+            self._applyChangedEntries(self.textOptions)
         finally:
             self._clear()
 
@@ -1785,7 +1820,10 @@ def scunch(sourceFolderPath, scmWork, textOptions=None, move=ScmPuncher.MoveName
     assert names in _ValidNames
 
     puncher = ScmPuncher(scmWork)
-    puncher.punch(sourceFolderPath, "", textOptions, move=move, names=names, includePatternText=includePatternText, excludePatternText=excludePatternText, workOnlyPatternText=workOnlyPatternText)
+    puncher.moveMode = move
+    puncher.nameTransformation = names
+    puncher.textOptions = textOptions
+    puncher.punch(sourceFolderPath, "", includePatternText=includePatternText, excludePatternText=excludePatternText, workOnlyPatternText=workOnlyPatternText)
 
 _NameToLogLevelMap = {
     'debug': logging.DEBUG,

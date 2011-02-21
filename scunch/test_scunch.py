@@ -425,7 +425,9 @@ class ScmPuncherTest(_SvnTest):
         
         self.scmWork.commit([""], "Punched recent changes.")
         rePuncher = scunch.ScmPuncher(self.scmWork)
-        rePuncher.punch(externalFolderPath, textOptions=textOptions, names=names)
+        rePuncher.nameTransformation = names
+        rePuncher.textOptions = textOptions
+        rePuncher.punch(externalFolderPath)
         self.assertNonNormalStatus({})
         self.assertEqual(rePuncher.workEntries, rePuncher.externalEntries)
 
@@ -478,10 +480,11 @@ class ScmPuncherTest(_SvnTest):
         _tools.makeEmptyFolder(os.path.join(externalPunchWithLowerCopyPath, "UPPER"))
         writeAllTxtFiles('UPPER')
         
-        modifyingPuncher = scunch.ScmPuncher(self.scmWork)
-        modifyingPuncher.punch(externalPunchWithLowerCopyPath, names=scunch._Names.Lower)
+        lowerNamesPuncher = scunch.ScmPuncher(self.scmWork)
+        lowerNamesPuncher.nameTransformation = scunch._Names.Lower
+        lowerNamesPuncher.punch(externalPunchWithLowerCopyPath)
 
-        self.assertEqual(modifyingPuncher.workEntries, modifyingPuncher.externalEntries)
+        self.assertEqual(lowerNamesPuncher.workEntries, lowerNamesPuncher.externalEntries)
 
         self.assertNonNormalStatus({scunch.ScmStatus.Added: 15})
         self._testAfterPunch(externalPunchWithLowerCopyPath, names=scunch._Names.Lower)
