@@ -611,6 +611,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Version history
 ===============
 
+**Version 0.5.4, 2011-02-22**
+
+* Cleaned up code.
+
 **Version 0.5.3, 2011-02-20**
 
 * #18: Added transformations of file and folder names, use for example
@@ -724,7 +728,7 @@ from xml.sax.handler import ContentHandler
 import antglob
 import _tools
 
-__version_info__ = (0, 5, 3)
+__version_info__ = (0, 5, 4)
 __version__ = '.'.join(unicode(item) for item in __version_info__)
 
 _log = logging.getLogger("scunch")
@@ -890,20 +894,20 @@ class ScmNameClashError(Exception):
     pass
 
 class ScmStatus(object):
-    Added = "added"
-    Conflicted = "conflicted"
-    External = "external"
-    Ignored = "ignored"
-    Incomplete = "incomplete"
-    Merged = "merged"
-    Missing = "missing"
-    Modified = "modified"
-    _None = "none"
-    Normal = "normal"
-    Obstructed = "obstructed"
-    Removed = "deleted"
-    Replaced = "replaced"
-    Unversioned = "unversioned"
+    Added = 'added'
+    Conflicted = 'conflicted'
+    External = 'external'
+    Ignored = 'ignored'
+    Incomplete = 'incomplete'
+    Merged = 'merged'
+    Missing = 'missing'
+    Modified = 'modified'
+    _None = 'none'
+    Normal = 'normal'
+    Obstructed = 'obstructed'
+    Removed = 'deleted'
+    Replaced = 'replaced'
+    Unversioned = 'unversioned'
 
     _CleanStati = set([External, Ignored, None, Normal])
     _ModifiedStati = set([Added, Merged, Modified, Removed])
@@ -911,25 +915,25 @@ class ScmStatus(object):
     _StatiNotToReset = set([Ignored, None, Normal])
 
     _SvnStatusToStatusMap = {
-        "added": Added,
-        "conflicted": Conflicted,
-        "deleted": Removed,
-        "external": External,
-        "ignored": Ignored,
-        "incomplete": Incomplete,
-        "merged": Merged,
-        "missing": Missing,
-        "modified": Modified,
+        'added': Added,
+        'conflicted': Conflicted,
+        'deleted': Removed,
+        'external': External,
+        'ignored': Ignored,
+        'incomplete': Incomplete,
+        'merged': Merged,
+        'missing': Missing,
+        'modified': Modified,
         # Note: status 'none' is not mapped to `None` directly because this
         # would prevent us from detecting unknown stati (which return `None`
         # when looked up.
         #
         # Nevertheless, `ScmStatus` uses `None` to represent a 'none' status
-        "none": _None,
-        "normal": Normal,
-        "obstructed": Obstructed,
-        "replaced": Replaced,
-        "unversioned": Unversioned
+        'none': _None,
+        'normal': Normal,
+        'obstructed': Obstructed,
+        'replaced': Replaced,
+        'unversioned': Unversioned
     }
 
     def __init__(self, path):
@@ -959,9 +963,9 @@ class ScmStatus(object):
         ``True`` if the status indicates that the path should be removed by
         `ScmWork.reset()`.
         """
-        resetBacauseOfEntryStatus = self.status not in ScmStatus._StatiNotToReset
+        resetBecauseOfEntryStatus = self.status not in ScmStatus._StatiNotToReset
         resetBecauseOfPropertiesStatus = self.propertiesStatus not in ScmStatus._StatiNotToReset
-        return resetBacauseOfEntryStatus or resetBecauseOfPropertiesStatus
+        return resetBecauseOfEntryStatus or resetBecauseOfPropertiesStatus
 
     def __unicode__(self):
         return u"%s:%s,%s" % (self.path, self.status, self.propertiesStatus)
@@ -1261,30 +1265,30 @@ class ScmPuncher(object):
     def _add(self, entries):
         for entryToAdd in entries:
             if not self._isInLastRemovedFolder(entryToAdd):
-                _log.debug('schedule entry for add: "%s"', entryToAdd.relativePath)
+                _log.debug('schedule entry for add: "%s"', entryToAdd._relativePath)
                 self._assertScheduledItemIsUnique(entryToAdd, 'add')
                 self._entriesToAdd.append(entryToAdd)
             else:
-                _log.debug('skip added entry in removed folder: "%s"', entryToAdd.relativePath)
+                _log.debug('skip added entry in removed folder: "%s"', entryToAdd._relativePath)
 
     def _remove(self, entries):
         for entryToRemove in entries:
             if not self._isInLastRemovedFolder(entryToRemove):
-                _log.debug('schedule entry for remove: "%s"', entryToRemove.relativePath)
+                _log.debug('schedule entry for remove: "%s"', entryToRemove._relativePath)
                 self._assertScheduledItemIsUnique(entryToRemove, 'remove')
                 self._entriesToRemove.append(entryToRemove)
             else:
-                _log.debug('skip removed entry in removed folder: "%s"', entryToRemove.relativePath)
+                _log.debug('skip removed entry in removed folder: "%s"', entryToRemove._relativePath)
 
     def _transfer(self, entries):
         for entryToTransfer in entries:
             if not self._isInLastRemovedFolder(entryToTransfer):
                 # TODO: Add option to consider entries modified by only checking their date.
-                _log.debug('schedule entry for transfer: "%s"', entryToTransfer.relativePath)
+                _log.debug('schedule entry for transfer: "%s"', entryToTransfer._relativePath)
                 self._assertScheduledItemIsUnique(entryToTransfer, 'transfer')
                 self._entriesToTransfer.append(entryToTransfer)
             else:
-                _log.debug('skip transferable entry in removed folder: "%s"', entryToTransfer.relativePath)
+                _log.debug('skip transferable entry in removed folder: "%s"', entryToTransfer._relativePath)
 
     def _copyTextFile(self, sourceFilePath, targetFilePath, textOptions):
         assert textOptions is not None
@@ -1329,7 +1333,7 @@ class ScmPuncher(object):
         for item in self.externalEntries:
             _log.debug('  %s', item)
             if workOnlyPatternText and workFilesToPreservePatternSet.matchesParts(item.parts):
-                raise ScmError('entry in folder to punch must exist only in work copy: "%s"' % item.relativePath)
+                raise ScmError('entry in folder to punch must exist only in work copy: "%s"' % item._relativePath)
 
         # Collect items in work copy.
         if workOnlyPatternText:
@@ -1438,7 +1442,7 @@ class ScmPuncher(object):
                 if possiblyMovedEntryKind == antglob.FileSystemEntry.File:
                         removedSourceEntry = correspondingRemovedEntries[0]
                         addedTargetEntry = possiblyMovedEntries[0]
-                        _log.debug('schedule for move: "%s" to "%s"', removedSourceEntry.relativePath, addedTargetEntry.relativePath)
+                        _log.debug('schedule for move: "%s" to "%s"', removedSourceEntry._relativePath, addedTargetEntry._relativePath)
                         self._entriesToRemove.remove(removedSourceEntry)
                         self._entriesToAdd.remove(addedTargetEntry)
                         self._entriesToMove.append((removedSourceEntry, addedTargetEntry))
@@ -1474,17 +1478,17 @@ class ScmPuncher(object):
             _logfilesAndFoldersMessage('transfer', self._entriesToTransfer)
             for entryToTransfer in self._entriesToTransfer:
                 if entryToTransfer.kind == antglob.FileSystemEntry.Folder:
-                    _log.info('  create "%s"', entryToTransfer.relativePath)
+                    _log.info('  create "%s"', entryToTransfer._relativePath)
                     _tools.makeFolder(self._workPathFor(entryToTransfer))
                 else:
-                    _log.info('  transfer "%s"', entryToTransfer.relativePath)
+                    _log.info('  transfer "%s"', entryToTransfer._relativePath)
                     self._transferEntryFromExternalToWork(entryToTransfer, textOptions)
         if self._entriesToAdd:
             _logfilesAndFoldersMessage('add', self._entriesToAdd)
             relativePathsToAdd = []
             # Create added folders and copy added files.
             for entryToAdd in self._entriesToAdd:
-                relativePathToAdd = entryToAdd.relativePath
+                relativePathToAdd = entryToAdd._relativePath
                 _log.info('  add "%s"', relativePathToAdd)
                 relativePathsToAdd.append(relativePathToAdd)
                 if entryToAdd.kind == antglob.FileSystemEntry.Folder:
@@ -1496,8 +1500,8 @@ class ScmPuncher(object):
         if self._entriesToMove:
             _logfilesAndFoldersMessage('move', [entryToMove for entryToMove, _ in self._entriesToMove])
             for sourceEntryToMove, targetEntryToMove in self._entriesToMove:
-                sourcePath = sourceEntryToMove.relativePath
-                targetPath = os.path.dirname(targetEntryToMove.relativePath)
+                sourcePath = sourceEntryToMove._relativePath
+                targetPath = os.path.dirname(targetEntryToMove._relativePath)
                 _log.info('  move "%s" from "%s" to "%s"', os.path.basename(sourcePath), os.path.dirname(sourcePath), targetPath)
                 self.scmWork.move(sourcePath, targetPath, force=True)
                 self._transferEntryFromExternalToWork(targetEntryToMove, textOptions)
@@ -1505,7 +1509,7 @@ class ScmPuncher(object):
             _logfilesAndFoldersMessage('remove', self._entriesToRemove)
             relativePathsToRemove = []
             for entryToRemove in self._entriesToRemove:
-                relativePathToRemove = entryToRemove.relativePath
+                relativePathToRemove = entryToRemove._relativePath
                 _log.info('  remove "%s"', relativePathToRemove)
                 relativePathsToRemove.append(relativePathToRemove)
             # Remove folder and files  using a single command call.

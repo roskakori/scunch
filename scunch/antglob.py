@@ -1,7 +1,12 @@
 """
 Ant-like pattern matching and globbing with support for "**".
 
-Ant-like includePatterns in their original form are described at
+Ant-like pattern matching and globbing with support for "**".
+
+Pattern syntax
+--------------
+
+Ant-like patterns in their original form are described at
 <http://ant.apache.org/manual/dirtasks.html>.
 Patterns supported by this module also allow shell includePatterns using "[" and "]"
 as supported by the `fnmatch` and `glob` module.
@@ -16,6 +21,47 @@ To sum it up:
 * "**" matches none or any folder.
 * If a pattern ends with "/" or "\", a "**" is automatically appended at the
   end of the pattern.
+
+Usage
+-----
+
+To find files and folders matching certains patterns, you first have to
+build an `AntPatternSet`. For example, to find all files matching
+``'*.py'``, use::
+
+>>> pythonSet = AntPatternSet()
+>>> pythonSet.include('**/*ant*.py')
+
+To find matching files, use::
+
+>>> import os
+>>> pythonSet.find(os.curdir)
+['scunch/antglob.py', 'scunch/test_antglob.py']
+
+As test files are of no interest, we can exclude them from the result::
+
+>>> pythonSet.exclude('**/test_*.py')
+>>> pythonSet.find(os.curdir)
+['scunch/antglob.py']
+
+Additionally to `AntPatternSet.find()` there is `AntPatternSet..ifind()` which
+yields the result bit by bit instead of returning a whole array.
+
+In case you want to know more than just the name, there is 
+`AntPatternSet.findEntries()` and `AntPatternSet.ifindEntries()` which use
+objects of type `FileSystemEntry` instead of strings containing just the path
+of the file found.
+
+A `FileSystemEntry` has the following properties:
+
+* ``kind``, which can be `FileSystemEntry.File` or `FileSystemEntry.Folder`.
+* ``name``, the plain name of the file or folder. Example: ``'some.txt'``.
+* ``parts``, a string array containing the folders and name of the entry
+  relative to the base folder. Example: ``['source', 'some.txt']``
+  indicates ``'source/some.txt'`` under Unix.
+* ``size``, the size of the file in bytes.
+* ``timeModified``, the timestamp when the file or folder was last
+  modified. See ``os.stat``, field ``st_mtime`` on how to process it.
 """
 # Copyright (C) 2011 Thomas Aglassinger
 #
@@ -38,42 +84,42 @@ import os
 import re
 import stat
 
-_log = logging.getLogger("antglob")
+_log = logging.getLogger('antglob')
 
-_AntAllMagic = "**"
+_AntAllMagic = '**'
 _AntMagicRegEx = re.compile('[*?[]')
 # TODO: Use _NotFound = -1; or use ``None`` to indicate a "not found".
 
 # Patterns to exclude by default similar to ant 1.8.2.
 DefaultExcludes = (
-     u"**/*~",
-     u"**/#*#",
-     u"**/.#*",
-     u"**/%*%",
-     u"**/._*",
-     u"**/CVS",
-     u"**/CVS/**",
-     u"**/.cvsignore",
-     u"**/SCCS",
-     u"**/SCCS/**",
-     u"**/vssver.scc",
-     u"**/.svn",
-     u"**/.svn/**",
-     u"**/.DS_Store",
-     u"**/.git",
-     u"**/.git/**",
-     u"**/.gitattributes",
-     u"**/.gitignore",
-     u"**/.gitmodules",
-     u"**/.hg",
-     u"**/.hg/**",
-     u"**/.hgignore",
-     u"**/.hgsub",
-     u"**/.hgsubstate",
-     u"**/.hgtags",
-     u"**/.bzr",
-     u"**/.bzr/**",
-     u"**/.bzrignore"
+     u'**/*~',
+     u'**/#*#',
+     u'**/.#*',
+     u'**/%*%',
+     u'**/._*',
+     u'**/CVS',
+     u'**/CVS/**',
+     u'**/.cvsignore',
+     u'**/SCCS',
+     u'**/SCCS/**',
+     u'**/vssver.scc',
+     u'**/.svn',
+     u'**/.svn/**',
+     u'**/.DS_Store',
+     u'**/.git',
+     u'**/.git/**',
+     u'**/.gitattributes',
+     u'**/.gitignore',
+     u'**/.gitmodules',
+     u'**/.hg',
+     u'**/.hg/**',
+     u'**/.hgignore',
+     u'**/.hgsub',
+     u'**/.hgsubstate',
+     u'**/.hgtags',
+     u'**/.bzr',
+     u'**/.bzr/**',
+     u'**/.bzrignore'
 )
 
 def createAntPatterns(patternListText):
@@ -83,8 +129,8 @@ def createAntPatterns(patternListText):
     """
     assert patternListText is not None
     result = []
-    if u"," in patternListText:
-        patternText = [part.strip() for part in patternListText.split(u",")]
+    if u',' in patternListText:
+        patternText = [part.strip() for part in patternListText.split(u',')]
     else:
         patternText = patternListText.split()
     for patternTextItem in patternText:
@@ -93,7 +139,7 @@ def createAntPatterns(patternListText):
 
 def resolvedPathParts(parts=[]):
     assert parts is not None
-    result = ""
+    result = u''
     for element in parts:
         result = os.path.join(result, element)
     return result
@@ -111,7 +157,7 @@ def _asFolderPath(path):
 
 def _parentOfFolderPath(folderPath):
     """
-    Like ``folderPath`` but without the trailing `os.sep`.
+    Like ``folderPath`` but without the trailing ``os.sep``.
     """
     assert folderPath
     assert isFolderPath(folderPath)
@@ -136,7 +182,7 @@ class FileSystemEntry(object):
     File = 'file'
     Folder = 'folder'
 
-    def __init__(self, baseFolderPath="", parts=[]):
+    def __init__(self, baseFolderPath='', parts=[]):
         assert parts is not None
         assert baseFolderPath is not None
 
@@ -146,18 +192,26 @@ class FileSystemEntry(object):
             entryInfo = os.stat(self.path)
         except OSError, error:
             if error.errno == errno.ENOENT:
-                raise AntPatternError("folder entry must remain during processing but was removed in the background: %r" % self.path)
+                raise AntPatternError(u'file system entry must remain during processing but was removed in the background: %r' % self.path)
             else:
                 raise
         entryMode = entryInfo.st_mode
         if stat.S_ISDIR(entryMode):
-            self.kind = FileSystemEntry.Folder
+            self._kind = FileSystemEntry.Folder
         elif stat.S_ISREG(entryMode):
-            self.kind = FileSystemEntry.File
+            self._kind = FileSystemEntry.File
         else:
-            raise AntPatternError("folder entry must be a folder or file: %r" % self.path)
+            raise AntPatternError(u'file system entry must be a folder or file: %r' % self.path)
         self.size = entryInfo.st_size
         self.timeModified = entryInfo.st_mtime
+
+    def _getKind(self):
+        return self._kind
+
+    kind = property(_getKind, doc='Entry kind, which can be `FileSystemEntry.File` or `FileSystemEntry.Folder`')
+
+    def _getParts(self):
+        return self._parts
 
     def setParts(self, parts):
         """
@@ -165,17 +219,32 @@ class FileSystemEntry(object):
         lower case names, but preserve properties related to file statistics.
         """
         assert parts is not None
-        self.parts = tuple(parts)
+        self._parts = tuple(parts)
         if self.parts:
             self.name = self.parts[-1]
         else:
-            self.name = ""
-        self.relativePath = resolvedPathParts(self.parts)
-        self.path = self.absolutePath(self._baseFolderPath)
-        
+            self.name = ''
+        self._relativePath = resolvedPathParts(self.parts)
+        self._path = self.absolutePath(self._baseFolderPath)
+
+    parts = property(_getParts, setParts,  doc='The folder and name parts the entry\'s path is composed of')
+
+    def _getPath(self):
+        return self._path
+
+    path = property(_getPath, doc='Absolute path of the entry.')
+
+    def _getRelativePath(self):
+        return self._relativePath
+
+    relativePath = property(_getRelativePath, doc='Path relative to the original base folder passed to the constructor.')
+
     def absolutePath(self, baseFolderPath):
+        """
+        Absolute path of the entry provided it would be located in ``baseFolderPath``.
+        """
         assert baseFolderPath is not None
-        return os.path.join(baseFolderPath, self.relativePath)
+        return os.path.join(baseFolderPath, self._relativePath)
 
     def __hash__(self):
         return self.parts.__hash__()
@@ -187,7 +256,7 @@ class FileSystemEntry(object):
         return self.parts == other.parts
 
     def __unicode__(self):
-        return u"<FileSystemEntry: kind=%s, parts=%s>" % (self.kind, self.parts)
+        return u'<FileSystemEntry: kind=%s, parts=%s>' % (self.kind, self.parts)
         
     def __str__(self):
         return unicode(self).encode('utf-8')
@@ -199,9 +268,9 @@ class AntPatternItem(object):
     """
     Ant-like pattern item able to match a single part of a path.
     """
-    All = "all"
-    Many = "many"
-    One = "one"
+    All = 'all'
+    Many = 'many'
+    One = 'one'
     
     def __init__(self, text):
         assert text is not None
@@ -229,7 +298,7 @@ class AntPatternItem(object):
         return result    
 
     def __unicode__(self):
-        return u"<AntPatternItem: kind=%s, pattern=%r>" % (self.kind, self.pattern)
+        return u'<AntPatternItem: kind=%s, pattern=%r>' % (self.kind, self.pattern)
         
     def __str__(self):
         return unicode(self).encode('utf-8')
@@ -333,9 +402,9 @@ def _textItemsMatchPatternItems(textItems, patternItems):
     hasTextItems = (len(textItems) > 0)
     hasPatternItems = (len(patternItems) > 0)
     hasExactlyOnePatternItem = (len(patternItems) == 1)
-    _log.debug("_textItemsMatchPatternItems:")
-    _log.debug("  ti=%s", textItems)
-    _log.debug("  pi=%s", patternItems)
+    _log.debug('_textItemsMatchPatternItems:')
+    _log.debug('  ti=%s', textItems)
+    _log.debug('  pi=%s', patternItems)
     if hasPatternItems:
         firstPatternItem = patternItems[0]
         if hasTextItems:
@@ -348,25 +417,25 @@ def _textItemsMatchPatternItems(textItems, patternItems):
                     if patternItemIndexOfNextAntAllMagic != -1:
                         # Adjust for the fact that we started to search after the first pattern item.
                         patternItemIndexOfNextAntAllMagic += 1
-                    assert patternItemIndexOfNextAntAllMagic != 1, "consecutive %r must be reduced to 1" % _AntAllMagic
-                    _log.debug("    patternItemIndexOfNextAntAllMagic=%s", patternItemIndexOfNextAntAllMagic)
+                    assert patternItemIndexOfNextAntAllMagic != 1, 'consecutive %r must be reduced to 1' % _AntAllMagic
+                    _log.debug('    patternItemIndexOfNextAntAllMagic=%s', patternItemIndexOfNextAntAllMagic)
                     if patternItemIndexOfNextAntAllMagic == -1:
                         # Last "**" encountered; check that tail of text matches end of remaining pattern.
                         patternItemsAfterAllMagic = patternItems[1:]
-                        _log.debug("    patternItemsAfterAllMagic=%s", patternItemsAfterAllMagic)
+                        _log.debug('    patternItemsAfterAllMagic=%s', patternItemsAfterAllMagic)
                         tailOfTextItems = textItems[-len(patternItemsAfterAllMagic):]
                         result = _textItemsAreAtEndOfPatternItems(tailOfTextItems, patternItemsAfterAllMagic)
                     else:
                         # "**" encountered with more "**" to come: check if and part of
                         # ``textItems`` matches the pattern between the two "**".
                         patternItemsBetweenAllMagic = patternItems[1:patternItemIndexOfNextAntAllMagic]
-                        _log.debug("    patternItemsBetweenAllMagic=%s", patternItemsBetweenAllMagic)
+                        _log.debug('    patternItemsBetweenAllMagic=%s', patternItemsBetweenAllMagic)
                         indexOfTextItemsMatchingPatternItemsBetweenAll = _indexInTextItemsWherePatternPartsMatch(textItems, patternItemsBetweenAllMagic)
                         if indexOfTextItemsMatchingPatternItemsBetweenAll >= 0:
                             remainingTextItems = textItems[indexOfTextItemsMatchingPatternItemsBetweenAll + len(patternItemsBetweenAllMagic):]
                             remainingPatternItems = patternItems[patternItemIndexOfNextAntAllMagic:]
-                            _log.debug("    remainingTextItems=%s", remainingTextItems)
-                            _log.debug("    remainingPatternItems=%s", remainingPatternItems)
+                            _log.debug('    remainingTextItems=%s', remainingTextItems)
+                            _log.debug('    remainingPatternItems=%s', remainingPatternItems)
                             result = _textItemsMatchPatternItems(remainingTextItems, remainingPatternItems)
                         else:
                             # We cannot even find the current sub pattern anywhere in the
@@ -409,12 +478,12 @@ def _splitTextParts(text, fixAllMagicAtEnd=False):
     """
     result = []
     pathSeperator = os.sep
-    if pathSeperator == "/":
-        remainingText = text.replace("\\", pathSeperator)
-    elif pathSeperator == "\\":
-        remainingText = text.replace("/", pathSeperator)
+    if pathSeperator == '/':
+        remainingText = text.replace('\\', pathSeperator)
+    elif pathSeperator == '\\':
+        remainingText = text.replace('/', pathSeperator)
     else:
-        raise NotImplementedError("cannot split unknown path separator: %r" % pathSeperator)
+        raise NotImplementedError(u'cannot split unknown path separator: %r' % pathSeperator)
     if fixAllMagicAtEnd and remainingText.endswith(pathSeperator):
         remainingText += _AntAllMagic
     while remainingText and (remainingText != pathSeperator):
@@ -440,7 +509,7 @@ class AntPattern(object):
         return _textItemsMatchPatternItems(textItems, self.patternItems)
 
     def __unicode__(self):
-        result = u"<AntPattern: %s>" % (self.patternItems)
+        result = u'<AntPattern: %s>' % (self.patternItems)
         return result
         
     def __str__(self):
@@ -455,12 +524,12 @@ class AntPatternSet(object):
     
     If no include pattern is specified, everything matches.
     
-    As example, first create a pattern and specifiy which files to include and exclude. In this
-    case, we want to include Python source code and documentation but exclude Python byte code:
+    As example, first create a pattern and specify which files to include and exclude. In this
+    case, we want to include Python source code and documentation but exclude test files:
     
     >>> pythonSet = AntPatternSet()
-    >>> pythonSet.include("**/*.py, **/*.rst")
-    >>> pythonSet.exclude("**/*.pyc, **/*.pyo")
+    >>> pythonSet.include('**/*.py, **/*.rst')
+    >>> pythonSet.exclude('**/test_*')
     
     We can use this pattern set to check whether certain file paths would be part of it:
     >>> pythonSet.matches("some/module.py")
@@ -511,6 +580,9 @@ class AntPatternSet(object):
         self._addPatternDefinition(self.excludePatterns, patternDefinition)
 
     def matches(self, text):
+        """
+        ``True`` if ``text`` matches any of the patterns in ``patterns``.
+        """
         textItems = _splitTextParts(text)
         return self.matchesParts(textItems)
     
@@ -520,7 +592,7 @@ class AntPatternSet(object):
         """
         assert textItems is not None
         assert patterns is not None
-        assert patterns, "empty patterns are special and must be handled before calling this"
+        assert patterns, 'empty patterns are special and must be handled before calling this'
         result = False
         patternIndex = 0
         while not result and (patternIndex < len(patterns)):
@@ -549,13 +621,13 @@ class AntPatternSet(object):
         assert relativeFolderParts is not None
         assert relativeFolderPath is not None
         if os.path.isabs(relativeFolderPath):
-            raise AntError("path must be a relative path: %r" % relativeFolderPath)
+            raise AntError(u'path must be a relative path: %r' % relativeFolderPath)
         folderToScanPath = os.path.join(baseFolderPath, relativeFolderPath)
         foundMatchingFilesOrSubFolders = False
         for nameToExamine in os.listdir(folderToScanPath):
             pathToExamine = os.path.join(relativeFolderPath, nameToExamine)
             if os.path.isabs(pathToExamine):
-                raise AntError("pathToExamine must be a relative path: %r" % pathToExamine)
+                raise AntError(u'path to examine must be a relative path: %r' % pathToExamine)
             pathToExamineParts = list(relativeFolderParts)
             pathToExamineParts.append(nameToExamine)
             if self.excludePatterns:
@@ -599,7 +671,7 @@ class AntPatternSet(object):
                         folderPathsYield.update([containingFolderPath])
                     for containingFolderPath in parentFolderPathsToYield:
                         if os.path.isabs(containingFolderPath):
-                            raise AntError("containingFolderPath must be a relative path: %r" % containingFolderPath)
+                            raise AntError(u'containing folder path must be a relative path: %r' % containingFolderPath)
                         yield _asFolderPath(containingFolderPath)
             yield pathToExamine
 
@@ -610,7 +682,7 @@ class AntPatternSet(object):
         assert folderToScanPath is not None
         for relativePath in self._findInFolder(folderToScanPath, addFolders):
             if relativePath.startswith(os.sep):
-                assert not relativePath.startswith(os.sep), "relativePath=%r" % relativePath
+                assert not relativePath.startswith(os.sep), 'relativePath=%r' % relativePath
             yield relativePath
 
     def find(self, folderToScanPath=os.getcwdu(), addFolders=False):
@@ -638,12 +710,12 @@ class AntPatternSet(object):
         """
         result = []
         for entry in self.ifindEntries(folderToScanPath):
-            _log.info("%s", entry)
+            _log.debug('  %s', entry)
             result.append(entry)
         return result
 
     def __unicode__(self):
-        return u"<AntPatternSet: include=%s, exclude=%s>" % (self.includePatterns, self.excludePatterns)
+        return u'<AntPatternSet: include=%s, exclude=%s>' % (self.includePatterns, self.excludePatterns)
         
     def __str__(self):
         return unicode(self).encode('utf-8')
@@ -651,8 +723,8 @@ class AntPatternSet(object):
     def __repr__(self):
         return self.__str__()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     logging.basicConfig(level=logging.WARNING)
-    _log.info("running doctest")
+    _log.info('running doctest')
     import doctest
     doctest.testmod()
