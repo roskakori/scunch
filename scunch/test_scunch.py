@@ -511,7 +511,7 @@ class ScmPuncherTest(_SvnTest):
 
         if hasLowerSomeTxt and hasMixedSomeTxt:
             clashingPuncher = scunch.ScmPuncher(self.scmWork)
-            self.assertRaises(scunch.ScmNameClashError, clashingPuncher.punch, externalPunchWithLowerNameClashPath, names=scunch.NameTransformations.Lower)
+            self.assertRaises(scunch.ScmNameClashError, clashingPuncher.punch, externalPunchWithLowerNameClashPath, names=scunch.LowerNameTransformation)
         else:
             _log.info('skipping test on case insensitive file system: %s', 'testPunchWithLowerNameClash')
 
