@@ -744,19 +744,23 @@ class _Actions(object):
     Update = 'update'
     Reset = 'reset'
 
-class _Names(object):
-    """
-    Pseudo class to collect possible value for ``--names``.
-    """
-    Lower = 'lower'
-    Preserve = 'preserve'
-    Upper = 'upper'
-    # TODO: Add custom transformation based on functions: transformedName(name, externalPath, isFolder)
+"""Name transformation to change name parts to lower case."""
+LowerNameTransformation = lambda name, entry: [part.lower() for part in entry.parts]
+"""Name transformation to leave name parts as they are."""
+IdentityNameTransformation = None
+"""Name transformation to change name parts to upper case."""
+UpperNameTransformation = lambda name, entry: [part.upper() for part in entry.parts]
 
-_ValidNames = set([_Names.Lower, _Names.Preserve, _Names.Upper])
+_NameToTransformationMap = {
+    'lower': LowerNameTransformation,
+    'preserve': IdentityNameTransformation,
+    'upper': UpperNameTransformation
+}
+
 _ValidAfterActions = set([_Actions.Commit, _Actions.None_, _Actions.Purge])
 _ValidBeforeActions = set([_Actions.Check, _Actions.Checkout, _Actions.None_, _Actions.Reset, _Actions.Update])
 _ValidConsoleNormalizations = set(['auto', 'nfc', 'nfkc', 'nfd', 'nfkd'])
+_ValidNameTransformations = set(_NameToTransformationMap.keys())
 
 def _setUpLogging(level=logging.INFO):
     """
@@ -770,7 +774,7 @@ def _setUpEncoding(consoleEncoding='auto', consoleNormalization='auto'):
     * consoleEncoding - the encoding used by shell commands when writing to ``stdout``.
 
     * consoleNormalization - Unicode normalization for console output which in turn decides the
-      normalization of file names. For Mac OS X HFS, this is "NFD". See Technical Q&A QA1173,
+      normalization of file names. For Mac OS X HFS, this is "nfd". See Technical Q&A QA1173,
       "Text Encodings in VFS", available from
       <http://developer.apple.com/library/mac/#qa/qa2001/qa1173.html>.
     """
@@ -1189,7 +1193,7 @@ class ScmPuncher(object):
         self._workFilesToPreservePatternSet = None
         self._textOptions=None
         self._moveMode=ScmPuncher.MoveName
-        self._nameTransformation=_Names.Preserve
+        self._nameTransformation=IdentityNameTransformation
 
     def _getMoveMode(self):
         return self._moveMode
@@ -1215,7 +1219,6 @@ class ScmPuncher(object):
         return self._nameTransformation
 
     def _setNameTransformation(self, newValue):
-        assert newValue in _ValidNames
         self._nameTransformation = newValue
 
     nameTransformation = property(_getNameTransformation, _setNameTransformation,
@@ -1338,32 +1341,27 @@ class ScmPuncher(object):
         for item in self.workEntries:
             _log.debug('  %s', item)
 
-    def _createTransformedFileSystemEntry(self, entry, names):
+    def _createTransformedFileSystemEntry(self, entry):
         assert entry is not None
-        assert names in _ValidNames
-        result = copy.copy(entry)
-        if names == _Names.Lower:
+        if self.nameTransformation:
+            transformedParts = self.nameTransformation(entry.parts[-1], entry)
+            assert transformedParts is not None
+            assert len(transformedParts) == len(entry.parts)
             result = copy.copy(entry)
-            result.setParts([item.lower() for item in entry.parts])
-        elif names == _Names.Preserve:
-            result = entry
-        elif names == _Names.Upper:
-            result = copy.copy(entry)
-            result.setParts([item.upper() for item in entry.parts])
+            result.setParts(transformedParts)
         else:
-            assert False
+            result = entry
         return result
-        
-    def _setAddedModifiedRemovedItems(self, names):
+
+    def _setAddedModifiedRemovedItems(self):
         assert self._externalFolderPath is not None
         assert self.workEntries is not None
         assert self.externalEntries is not None
-        assert names in _ValidNames
         
         self._renamedExternalEntries = []
         self._renamedToOriginalExternalEntriesMap = {}
         for externalEntry in self.externalEntries:
-            renamedExternalEntry = self._createTransformedFileSystemEntry(externalEntry, names)
+            renamedExternalEntry = self._createTransformedFileSystemEntry(externalEntry)
             existingRenamedExternalEntry = self._renamedToOriginalExternalEntriesMap.get(renamedExternalEntry)
             if existingRenamedExternalEntry:
                 raise ScmNameClashError('name clash must be resolved: "%s" and "%s"' % (existingRenamedExternalEntry.path, renamedExternalEntry.path))
@@ -1518,7 +1516,7 @@ class ScmPuncher(object):
         assert relativeWorkFolderPath is not None
         try:
             self._setExternalAndWorkEntries(externalFolderPath, relativeWorkFolderPath, includePatternText, excludePatternText, workOnlyPatternText)
-            self._setAddedModifiedRemovedItems(self.nameTransformation)
+            self._setAddedModifiedRemovedItems()
             if self.moveMode != ScmPuncher.MoveNone:
                 self._setCopiedAndMovedEntries()
             self._applyChangedEntries(self.textOptions)
@@ -1814,14 +1812,13 @@ def listRelativePaths(folderToListPath, parts=[]):
         else:
                 yield ('file', tuple(itemElements))
 
-def scunch(sourceFolderPath, scmWork, textOptions=None, move=ScmPuncher.MoveName, names=_Names.Preserve, includePatternText=None, excludePatternText=None, workOnlyPatternText=None):
+def scunch(sourceFolderPath, scmWork, textOptions=None, move=ScmPuncher.MoveName, nameTransformation=IdentityNameTransformation, includePatternText=None, excludePatternText=None, workOnlyPatternText=None):
     assert sourceFolderPath is not None
     assert move in ScmPuncher._ValidMoveModes
-    assert names in _ValidNames
 
     puncher = ScmPuncher(scmWork)
     puncher.moveMode = move
-    puncher.nameTransformation = names
+    puncher.nameTransformation = nameTransformation
     puncher.textOptions = textOptions
     puncher.punch(sourceFolderPath, "", includePatternText=includePatternText, excludePatternText=excludePatternText, workOnlyPatternText=workOnlyPatternText)
 
@@ -1881,7 +1878,7 @@ def parsedOptions(arguments):
     punchGroup.add_option("-a", "--after", default=_Actions.None_, dest="actionsToPerformAfterPunching", metavar="ACTION", help=u'action(s) to perform after punching: %s (default: \'%%default\')' % _tools.humanReadableList(_ValidAfterActions))
     punchGroup.add_option("-b", "--before", default=_Actions.Check, dest="actionsToPerformBeforePunching", metavar="ACTION", help=u'action(s) to perform before punching: %s (default: \'%%default\')' % _tools.humanReadableList(_ValidBeforeActions))
     punchGroup.add_option("-d", "--depot", dest="depotQualifier", metavar="QUALIFIER", help=u'qualifier for source code depot when using --before=checkout')
-    punchGroup.add_option("-f", "--names", default=_Names.Preserve, dest="nameTransformation", metavar="MODE", help=u'transformation to apply on names in work copy: %s (default: \'%%default\')' % _tools.humanReadableList(sorted(_ValidNames)))
+    punchGroup.add_option("-f", "--names", default='preserve', dest="nameTransformation", metavar="MODE", help=u'transformation to apply on names in work copy: %s (default: \'%%default\')' % _tools.humanReadableList(sorted(_ValidNameTransformations)))
     punchGroup.add_option("-i", "--include", dest="includePattern", metavar="PATTERN", help=u'ant pattern for files and folders to include (default: all files)')
     punchGroup.add_option("-m", "--message", default="Punched recent changes.", dest="commitMessage", metavar="TEXT", help=u'text for commit message (default: \'%default\')')
     punchGroup.add_option("-M", "--move", default=ScmPuncher.MoveName, dest="moveMode", metavar="MODE", type="choice", choices=sorted(list(ScmPuncher._ValidMoveModes)), help=u'criteria to detect moved files: %s (default: \'%%default\')' % _tools.humanReadableList(ScmPuncher._ValidMoveModes))
@@ -1986,6 +1983,7 @@ def main(arguments=None):
         else:
             scmWork = createScmWork(workFolderPath)
         textOptions = _createTextOptions(options)
+        nameTransformation = _NameToTransformationMap[options.nameTransformation]
         
         # Perform actions before punching.
         for action in actionsToPerformBeforePunching:
@@ -2002,7 +2000,7 @@ def main(arguments=None):
                 assert action == _Actions.None_, "action=%r" % action
 
         # Actually punch work copy.
-        scunch(sourceFolderPath, scmWork, textOptions, move=options.moveMode, names=options.nameTransformation, includePatternText=options.includePattern, excludePatternText=options.excludePattern, workOnlyPatternText=options.workOnlyPattern)
+        scunch(sourceFolderPath, scmWork, textOptions, move=options.moveMode, nameTransformation=nameTransformation, includePatternText=options.includePattern, excludePatternText=options.excludePattern, workOnlyPatternText=options.workOnlyPattern)
 
         # Perform actions after punching.
         for action in actionsToPerformAfterPunching:
@@ -2024,8 +2022,7 @@ def main(arguments=None):
     except Exception, error:
         _log.exception("%s", error)
         exitError = error
-    if exitCode:
-        assert exitError
+    assert bool(exitCode) == bool(exitError), "exitCode=%d, exitError=%r" % (exitCode, exitError)
     return (exitCode, exitError)
 
 if __name__ == "__main__":

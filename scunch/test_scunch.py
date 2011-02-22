@@ -416,7 +416,7 @@ class ScmPuncherTest(_SvnTest):
     def setUp(self):
         scunch._setUpEncoding()
 
-    def _testAfterPunch(self, externalFolderPath, textOptions=None, names=scunch._Names.Preserve):
+    def _testAfterPunch(self, externalFolderPath, textOptions=None, names=scunch.IdentityNameTransformation):
         """
         Test that previously punched changes can be committed and a re-punch results in no further changes.
         """
@@ -481,13 +481,13 @@ class ScmPuncherTest(_SvnTest):
         writeAllTxtFiles('UPPER')
         
         lowerNamesPuncher = scunch.ScmPuncher(self.scmWork)
-        lowerNamesPuncher.nameTransformation = scunch._Names.Lower
+        lowerNamesPuncher.nameTransformation = scunch.LowerNameTransformation
         lowerNamesPuncher.punch(externalPunchWithLowerCopyPath)
 
         self.assertEqual(lowerNamesPuncher.workEntries, lowerNamesPuncher.externalEntries)
 
         self.assertNonNormalStatus({scunch.ScmStatus.Added: 15})
-        self._testAfterPunch(externalPunchWithLowerCopyPath, names=scunch._Names.Lower)
+        self._testAfterPunch(externalPunchWithLowerCopyPath, names=scunch.LowerNameTransformation)
 
     def testPunchWithLowerNameClash(self):
         self.setUpEmptyProject("punchWithLowerNameClash")
@@ -511,7 +511,7 @@ class ScmPuncherTest(_SvnTest):
 
         if hasLowerSomeTxt and hasMixedSomeTxt:
             clashingPuncher = scunch.ScmPuncher(self.scmWork)
-            self.assertRaises(scunch.ScmNameClashError, clashingPuncher.punch, externalPunchWithLowerNameClashPath, names=scunch._Names.Lower)
+            self.assertRaises(scunch.ScmNameClashError, clashingPuncher.punch, externalPunchWithLowerNameClashPath, names=scunch.NameTransformations.Lower)
         else:
             _log.info('skipping test on case insensitive file system: %s', 'testPunchWithLowerNameClash')
 
