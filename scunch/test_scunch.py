@@ -97,7 +97,7 @@ class _ScmTest(unittest.TestCase):
             actualStatus = statusInfo.status
             if actualStatus != scunch.ScmStatus.Normal:
                 if not actualStatus in expectedStatusToCountMap:
-                    self.fail(u'status for "%s" is %r but must be one of: %s' % (statusInfo.path, actualStatus, expectedStatusToCountMap.keys()))
+                    self.fail(u'status for "%s" is %r but must be one of: %s' % (statusInfo.path, actualStatus, expectedStatusToCountMap.keys())) # pragma: no cover
                 existingCount = actualStatusToCountMap.get(actualStatus)
                 if existingCount is None:
                     actualStatusToCountMap[actualStatus] = 1
@@ -254,7 +254,7 @@ class ScunchTest(_SvnTest):
             arguments = ["scunch.test"]
             arguments.extend(cliOptions)
             scunch.main(arguments)
-            self.fail("expected SystemExit with code=%d" % expectedExitCode)
+            self.fail("expected SystemExit with code=%d" % expectedExitCode) # pragma: no cover
         except SystemExit, error:
             if expectedExitCode:
                 self.assertEqual(error.code, expectedExitCode)
@@ -279,6 +279,18 @@ class ScunchTest(_SvnTest):
     def testFailsWithBrokenBeforeAction(self):
         self._testMainWithSystemExit(['--before', 'broken', 'external_folder', 'work_folder'], 2)
 
+    def testFailsOnCheckoutWithoutDepot(self):
+        self._testMainWithSystemExit(['--before', 'checkout', 'external_folder', 'work_folder'], 2)
+
+    def testFailsOnCheckoutBeforeReset(self):
+        self._testMainWithSystemExit(['--before', 'checkout, reset', '--depot', 'http://example.com/ohsome/trunk/', 'external_folder', 'work_folder'], 2)
+
+    def testFailsOnUpdateBeforeReset(self):
+        self._testMainWithSystemExit(['--before', 'update, reset', 'external_folder', 'work_folder'], 2)
+
+    def testFailsOnPurgeBeforeCommit(self):
+        self._testMainWithSystemExit(['--after', 'purge, commit', 'external_folder', 'work_folder'], 2)
+
     def testFailsWithBrokenTabSize(self):
         self._testMainWithSystemExit(['--text', '**/*.py', '--tabsize', '-1', 'external_folder', 'work_folder'], 2)
 
@@ -286,7 +298,7 @@ class ScunchTest(_SvnTest):
         self._testMainWithSystemExit(['--newline', 'external_folder', 'work_folder'], 2)
 
     def testFailsWithOptionTabsizeWithoutTextPattern(self):
-        self._testMainWithSystemExit(['--tabsize', 'external_folder', 'work_folder'], 2)
+        self._testMainWithSystemExit(['--tabsize', '4', 'external_folder', 'work_folder'], 2)
 
     def testFailsWithOptionStripTrailingWithoutTextPattern(self):
         self._testMainWithSystemExit(['--strip-trailing', 'external_folder', 'work_folder'], 2)
@@ -741,7 +753,7 @@ class ScmPuncherTest(_SvnTest):
         self.assertNonNormalStatus({scunch.ScmStatus.Unversioned: 1, scunch.ScmStatus.Missing: 1})
         # TODO: Remove: self._testAfterPunch(testPunchWithPatternPath)
 
-if __name__ == '__main__':
+if __name__ == '__main__': # pragma: no cover
     scunch._setUpLogging(logging.DEBUG)
     logging.getLogger("antglob").setLevel(logging.INFO)
     unittest.main()

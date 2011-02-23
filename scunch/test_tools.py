@@ -25,7 +25,7 @@ import _tools
 _log = logging.getLogger("test")
 
 class FolderTest(unittest.TestCase):
-    def testFolderFunctions(self):
+    def testCanMessWithFolders(self):
         testFolderPath = tempfile.mkdtemp(prefix="scunch_test_")
         _tools.removeFolder(testFolderPath)
         self.assertFalse(os.path.exists(testFolderPath))
@@ -37,10 +37,10 @@ class FolderTest(unittest.TestCase):
         _tools.removeFolder(testFolderPath)
         _tools.makeEmptyFolder(testFolderPath)
         _tools.makeEmptyFolder(testFolderPath)
-        
+
         # Clean up.
         _tools.removeFolder(testFolderPath)
 
-if __name__ == '__main__':
+if __name__ == '__main__': # pragma: no cover
     logging.basicConfig(level=logging.INFO)
     unittest.main()

@@ -723,7 +723,7 @@ class AntPatternSet(object):
     def __repr__(self):
         return self.__str__()
 
-if __name__ == '__main__':
+if __name__ == '__main__': # pragma: no cover
     logging.basicConfig(level=logging.WARNING)
     _log.info('running doctest')
     import doctest

@@ -30,7 +30,7 @@ def makeFolder(folderPathToMake):
         os.makedirs(folderPathToMake)
     except OSError, error:
         if error.errno !=  errno.EEXIST:
-            raise
+            raise # pragma: no cover
 
 def removeFolder(folderPathToRemove):
     # Attempt to remove the folder, ignoring any errors.
@@ -40,7 +40,7 @@ def removeFolder(folderPathToRemove):
         # If the folder still exists after the removal, try to remove it again but this
         # time with errors raised. In most cases, this will result in a proper error message
         # explaining why the folder could not be removed the first time.
-        shutil.rmtree(folderPathToRemove)
+        shutil.rmtree(folderPathToRemove) # pragma: no cover
 
 def makeEmptyFolder(folderPathToCreate):
     removeFolder(folderPathToCreate)
@@ -49,23 +49,30 @@ def makeEmptyFolder(folderPathToCreate):
 def humanReadableList(items):
     """
     All values in ``items`` in a human readable form. This is meant to be used in error messages, where
-    dumping "%r" to the user does not cut it.
+    dumping '%r' to the user does not cut it.
+    
+    >>> humanReadableList(['red', 'green', 'blue'])
+    u"'red', 'green' or 'blue'"
+    >>> humanReadableList(['red'])
+    u"'red'"
+    >>> humanReadableList([])
+    u''
     """
     assert items is not None
     listItems = list(items)
     itemCount = len(listItems)
     if itemCount == 0:
-        result = ""
+        result = u''
     elif itemCount == 1:
-        result = "%r" % listItems[0]
+        result = u'%r' % listItems[0]
     else:
-        result = ""
+        result = u''
         for itemIndex in range(itemCount):
             if itemIndex == itemCount - 1:
-                result += " or "
+                result += u' or '
             elif itemIndex > 0:
-                result += ", "
-            result += "%r" % listItems[itemIndex]
+                result += u', '
+            result += u'%r' % listItems[itemIndex]
         assert result
     assert result is not None
     return result
@@ -74,12 +81,12 @@ def oneOrOtherText(count, oneText, otherText):
     """
     Text depending ``count`` to properly use singular and plural.
 
-    >>>oneOrOtherText(0, 'item', 'items'):
-    '0 items'
-    >>>oneOrOtherText(1, 'item', 'items'):
-    '1 item'
-    >>>oneOrOtherText(2, 'item', 'items'):
-    '2 items'
+    >>> oneOrOtherText(0, 'item', 'items')
+    u'0 items'
+    >>> oneOrOtherText(1, 'item', 'items')
+    u'1 item'
+    >>> oneOrOtherText(2, 'item', 'items')
+    u'2 items'
     """
     assert count >= 0
     if count == 1:
@@ -88,3 +95,9 @@ def oneOrOtherText(count, oneText, otherText):
         text = otherText
     result = u'%d %s' % (count, text)
     return result
+
+if __name__ == '__main__': # pragma: no cover
+    logging.basicConfig(level=logging.INFO)
+    _log.info('running doctest')
+    import doctest
+    doctest.testmod()

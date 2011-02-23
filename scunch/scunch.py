@@ -611,9 +611,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Version history
 ===============
 
-**Version 0.5.4, 2011-02-22**
+**Version 0.5.4, 2011-02-23**
 
-* Cleaned up code.
+* Improved validation of command line options.
+* Cleaned up error messages, code and documentation.
 
 **Version 0.5.3, 2011-02-20**
 
@@ -1338,7 +1339,7 @@ class ScmPuncher(object):
         # Collect items in work copy.
         if workOnlyPatternText:
             filesToPunchPatternSet.exclude(workOnlyPatternText)
-        self.workEntries = self.scmWork.listFolderItems(relativeWorkFolderPath, filesToPunchPatternSet)
+        self.workEntries = self.scmWork.findEntries(relativeWorkFolderPath, filesToPunchPatternSet)
         self.workEntries = _sortedFileSystemEntries(self.workEntries)
         # TODO: Fix singular/plural in log.
         _log.info('found %d work entries in "%s"', len(self.workEntries), self.scmWork.absolutePath("work path", relativeWorkFolderPath))
@@ -1409,7 +1410,7 @@ class ScmPuncher(object):
                         assert replacedEntry in replacedWorkEntries, 'entry must be at least in external or work entries: %s' % replacedEntry
                         self._remove([replacedEntry])
             else:
-                assert False, "operation=%r" % operation
+                assert False, "operation=%r" % operation # pragma: no cover
 
     def _createNameAndKindToListOfFolderItemsMap(self, entries):
         result = {}
@@ -1462,7 +1463,7 @@ class ScmPuncher(object):
                 elif entry.kind == antglob.FileSystemEntry.Folder:
                     folderCount += 1
                 else:
-                    assert False
+                    assert False  # pragma: no cover
             countText = u''
             if fileCount > 0:
                 countText += _tools.oneOrOtherText(fileCount, u'file', u'files')
@@ -1745,7 +1746,7 @@ class ScmWork(object):
                 else:
                     yield path
 
-    def listFolderItems(self, relativeFolderToList="", patternSetToMatch=None):
+    def findEntries(self, relativeFolderToList="", patternSetToMatch=None):
         """
         List of file system entries starting with ``relativeFolderPathToList`` excluding special
         entries used internally by the SCM (such as for example ".svn" for Subversion).
@@ -1942,8 +1943,7 @@ def parsedOptions(arguments):
 
     # Validate actions for option ``--before``.
     actionsToPerformBeforePunching = _parsedActions(parser, '--before', options.actionsToPerformBeforePunching, _ValidBeforeActions)
-    # 10: Consider Actions.Checkout to be destructive
-    destructiveActions = set([_Actions.Reset])
+    destructiveActions = set([_Actions.Checkout, _Actions.Reset])
     previousDestructiveAction = None
     previousAction = None
     for action in actionsToPerformBeforePunching:

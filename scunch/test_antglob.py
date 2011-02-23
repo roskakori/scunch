@@ -27,11 +27,6 @@ import antglob
 
 _log = logging.getLogger('test')
 
-class DocTest(unittest.TestSuite):
-    def __init__(self):
-        super(DocTest, self).__init__()
-        self.addTest(doctest.DocTestSuite(antglob))
-
 class TestPrivateFunctions(unittest.TestCase):
     def testTextItemsAreInPatternItems(self):
         pattern = antglob.AntPattern('a/b/*_tmp/*.txt')
@@ -61,7 +56,7 @@ class TestPrivateFunctions(unittest.TestCase):
         self.assertEqual(antglob._indexInTextItemsWherePatternPartsMatch(antglob._splitTextParts(''), patternItems), -1)
 
 class AntPatternTest(unittest.TestCase):
-    def testFindListInList(self):
+    def testCanFindListInList(self):
         self.assertEqual(antglob._findListInList([2], [5, 4, 2, 7]), 2)
         self.assertEqual(antglob._findListInList([5], [5, 4, 2, 7]), 0)
         self.assertEqual(antglob._findListInList([7], [5, 4, 2, 7]), 3)
@@ -71,7 +66,7 @@ class AntPatternTest(unittest.TestCase):
         self.assertEqual(antglob._findListInList([2, 7], [5, 4, 2, 7]), 2)
         self.assertEqual(antglob._findListInList([4, 3], [5, 4, 2, 7]), -1)
      
-    def testOnePatterns(self):
+    def testCanMatchPatternsWithoutPlaceholders(self):
         pattern = antglob.AntPattern('hugo')
         self.assertTrue(pattern.matches('hugo'))
         self.assertFalse(pattern.matches('sepp'))
@@ -87,7 +82,7 @@ class AntPatternTest(unittest.TestCase):
         self.assertFalse(pattern.matches('a/b/xxx/c'))
         self.assertFalse(pattern.matches('a/b/c/d'))
 
-    def testManyPatterns(self):
+    def testCanMatchPatternsWithPlaceHolders(self):
         pattern = antglob.AntPattern('*.txt')
         self.assertTrue(pattern.matches('hugo.txt'))
         self.assertFalse(pattern.matches('hugo.txtx'))
@@ -98,7 +93,7 @@ class AntPatternTest(unittest.TestCase):
         self.assertTrue(pattern.matches('x'))
         self.assertTrue(pattern.matches(''))
 
-    def testAllPatterns(self):
+    def testCanMatchPatternsWithAllMagic(self):
         pattern = antglob.AntPattern('**')
         self.assertTrue(pattern.matches('hugo.txt'))
         self.assertTrue(pattern.matches(''))
@@ -111,7 +106,7 @@ class AntPatternTest(unittest.TestCase):
         self.assertFalse(pattern.matches('hugo.txt/hugo.png'))
         self.assertFalse(pattern.matches(''))
 
-    def testMultipleAllPatterns(self):
+    def testCanMatchPatternsWithMultipleAllMagics(self):
         pattern = antglob.AntPattern('**/b/**')
         self.assertTrue(pattern.matches('b'))
         self.assertTrue(pattern.matches('b/hugo.txt'))
@@ -132,7 +127,7 @@ class AntPatternTest(unittest.TestCase):
         self.assertFalse(pattern.matches('a/b123/hugo.txt'))
         self.assertFalse(pattern.matches(''))
 
-    def testAntPatternSet(self):
+    def testCanMatchAntPatternSet(self):
         patternSet = antglob.AntPatternSet()
         patternSet.include(antglob.AntPattern('*.png'))
         patternSet.include(antglob.AntPattern('*.jpg'))
@@ -168,14 +163,19 @@ class AntPatternSetFindTest(unittest.TestCase):
         """
         try:
             os.makedirs(folderPathToMake)
-        except OSError, error:
+        except OSError, error: # pragma: no cover
             if error.errno !=  errno.EEXIST:
                 raise
     
-    def writeTestFile(self, relativePathOfFileToWrite, lines=[]):
+    def writeTestFile(self, relativePathOfFileToWrite, lines=[], baseFolderPath=None):
         assert relativePathOfFileToWrite
         assert lines is not None
-        testFilePath = os.path.join(self._testFolderPath, relativePathOfFileToWrite)
+        
+        if baseFolderPath is None:
+            actualBaseFolderPath = self._testFolderPath
+        else:
+            actualBaseFolderPath = baseFolderPath
+        testFilePath = os.path.join(actualBaseFolderPath, relativePathOfFileToWrite)
         testFile = open(testFilePath, 'wb')
         try:
             for line in lines:
@@ -184,22 +184,24 @@ class AntPatternSetFindTest(unittest.TestCase):
         finally:
             testFile.close()
 
-    def testFindFolderOnlyOnce(self):
+    def testDoesFindFolderOnlyOnce(self):
         textSet = antglob.AntPatternSet()
         textSet.include('**/*.txt')
         testFolderPath = tempfile.mkdtemp(prefix='test_antpattern_')
         someFolderPath = os.path.join(testFolderPath, 'some')
         os.mkdir(someFolderPath)
-        with open(os.path.join(testFolderPath, 'other.txt'), 'wb'):
-            # Just create an empty file.
-            pass
-        with open(os.path.join(someFolderPath, 'some.txt'), 'wb'):
-            # Just create an empty file.
-            pass
+        self.writeTestFile('other.txt', baseFolderPath=someFolderPath)
+        self.writeTestFile('some.txt', baseFolderPath=someFolderPath)
         entries = textSet.findEntries(testFolderPath)
-        self.assertEqual(3, len(entries))
+        actualRelativeEntryPaths = sorted([entry.relativePath for entry in entries])
+        expectedRelativeEntryPaths = sorted([
+            'some' + os.sep,
+            os.path.join('some', 'other.txt'),
+            os.path.join('some', 'some.txt')
+        ])
+        self.assertEqual(expectedRelativeEntryPaths, actualRelativeEntryPaths)
 
-    def testFindPatternSet(self):
+    def testCanFindFilesAndfFolders(self):
         pythonSet = antglob.AntPatternSet()
         pythonSet.include('**/*.py, **/*.rst')
         pythonSet.exclude('**/*.pyc, **/*.pyo')
@@ -217,7 +219,7 @@ class AntPatternSetFindTest(unittest.TestCase):
         self.assertTrue(filePathCount)
         self.assertTrue(folderPathCount)
 
-    def testFindPatternSetWithoutFolders(self):
+    def testCanFindFilesInRootFolder(self):
         pythonSet = antglob.AntPatternSet()
         pythonSet.include('**/*.py, **/*.rst')
         pythonSet.exclude('**/*.pyc, **/*.pyo')
@@ -231,7 +233,7 @@ class AntPatternSetFindTest(unittest.TestCase):
             filePathCount += 1
         self.assertTrue(filePathCount)
 
-    def testFindPatternSetOnEmptyFolder(self):
+    def testCanFindEmptyFolder(self):
         pythonSet = antglob.AntPatternSet()
         
         # Create a test folder containing exactly 1 empty sub folder.
@@ -246,7 +248,7 @@ class AntPatternSetFindTest(unittest.TestCase):
             self.assertTrue(antglob.isFolderPath(path), 'path must be a folder: %r' % path)
         self.assertEqual(pathCount, 1)
 
-    def testFindEntriesForPatternSet(self):
+    def testCanFindEntriesForPatternSet(self):
         pythonSet = antglob.AntPatternSet()
         pythonSet.include('**/*.py, **/*.rst')
         pythonSet.exclude('**/*.pyc, **/*.pyo')
@@ -266,27 +268,39 @@ class AntPatternSetFindTest(unittest.TestCase):
         self.assertTrue(fileCount)
         self.assertTrue(folderCount)
 
-class FolderEntryTest(unittest.TestCase):
-    def testFileEntry(self):
+class FileSystemEntryTest(unittest.TestCase):
+    def testCanProcessFileEntry(self):
         testFolderPath = tempfile.mkdtemp(prefix='test_antpattern_')
         testFilePath = os.path.join(testFolderPath, 'test.txt')
         testText = 'some test text'
         with open(testFilePath, 'wb') as testFile:
             testFile.write(testText)
         
-        folderEntry = antglob.FileSystemEntry(os.path.dirname(testFilePath), [os.path.basename(testFilePath)])
-        self.assertEqual(folderEntry.kind, antglob.FileSystemEntry.File)
-        self.assertEqual(folderEntry.size, len(testText))
-        self.assertEqual(folderEntry.parts, tuple(['test.txt']))
+        entry = antglob.FileSystemEntry(os.path.dirname(testFilePath), [os.path.basename(testFilePath)])
+        self.assertEqual(entry.kind, antglob.FileSystemEntry.File)
+        self.assertEqual(entry.size, len(testText))
+        self.assertEqual(entry.parts, tuple(['test.txt']))
+
+        # Just exercise methods to render entry.        
+        self.assertTrue(repr(entry))
+        self.assertTrue(str(entry))
+        self.assertTrue(unicode(entry))
+
         shutil.rmtree(testFolderPath)
 
-    def testFolderEntry(self):
+    def testCanProcessFolderEntry(self):
         testFolderPath = tempfile.mkdtemp(prefix='test_antpattern_')
-        folderEntry = antglob.FileSystemEntry(os.path.dirname(testFolderPath), [os.path.basename(testFolderPath)])
-        self.assertEqual(folderEntry.kind, antglob.FileSystemEntry.Folder)
-        self.assertEqual(folderEntry.parts, tuple([os.path.basename(testFolderPath)]))
+        entry = antglob.FileSystemEntry(os.path.dirname(testFolderPath), [os.path.basename(testFolderPath)])
+        self.assertEqual(entry.kind, antglob.FileSystemEntry.Folder)
+        self.assertEqual(entry.parts, tuple([os.path.basename(testFolderPath)]))
+
+        # Just exercise methods to render entry.        
+        self.assertTrue(repr(entry))
+        self.assertTrue(str(entry))
+        self.assertTrue(unicode(entry))
+
         shutil.rmtree(testFolderPath)
 
-if __name__ == '__main__':
+if __name__ == '__main__': # pragma: no cover
     logging.basicConfig(level=logging.INFO)
     unittest.main()
