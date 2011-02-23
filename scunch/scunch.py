@@ -1626,7 +1626,7 @@ class ScmWork(object):
     def absolutePath(self, name, relativePath):
         assert name
         if relativePath is None:
-            raise ScmError("%s must not be None" % relativePath)
+            raise ScmError("%s must not be %r" % (name, None))
         result = os.path.join(self.localTargetPath, relativePath)
         return result
 
@@ -1640,7 +1640,7 @@ class ScmWork(object):
         for relativePath in actualRelativePaths:
             result.append(self.absolutePath(name, relativePath))
         if not result:
-            raise ScmError("at least 1 %s must be specified")
+            raise ScmError("at least 1 %s must be specified" % name)
         return result
 
     def add(self, relativePathsToAdd, recursive=True):
@@ -1785,6 +1785,9 @@ class ScmWork(object):
         shutil.copytree(folderPathToExport, targetFolderPath, ignore=shutil.ignore_patterns(".svn", "_svn"))
 
 def createScmWork(workFolderPath):
+    """
+    Create an `ScmWork` from an existing work copy located at ``workFolderPath``.
+    """
     SvnUrlKey = "URL: "
     scmStorageQualifier = None
     for svnName in [".svn", "_svn"]:
@@ -1798,33 +1801,42 @@ def createScmWork(workFolderPath):
                     scmStorageQualifier = infoLine[len(SvnUrlKey):]
                     _log.info("found svn work copy stored at %s", scmStorageQualifier)
     if scmStorageQualifier is None:
-        raise ScmError("folder must be a working copy: \"%s\"" % workFolderPath)
+        raise ScmError("folder must be a work copy: \"%s\"" % workFolderPath)
     scmStorage = ScmStorage(scmStorageQualifier)
     result = ScmWork(scmStorage, "", workFolderPath, ScmWork.CheckOutActionSkip)
     return result
 
-def listRelativePaths(folderToListPath, parts=[]):
-    for folderItem in os.listdir(folderToListPath):
-        itemElements = list(parts)
-        itemElements.append(folderItem)
-        itemPath = os.path.join(folderToListPath, folderItem)
-        # TODO: Ignore special paths such as ".svn"
-        if os.path.isdir(itemPath):
-            yield ('folder', tuple(itemElements))
-            for itemTypeAndElements in listRelativePaths(itemPath, itemElements):
-                yield itemTypeAndElements
-        else:
-                yield ('file', tuple(itemElements))
+def scunch(sourceFolderPath, scmWork, textOptions=None, moveMode=ScmPuncher.MoveName, nameTransformation=IdentityNameTransformation, includePatternText=None, excludePatternText=None, workOnlyPatternText=None):
+    """
+    Punch files from unversioned folder ``sourceFolderPath`` into a `ScmWork` work copy
+    ``scmWork``.
+    
+    To post process text files, specify `TextOptions` in ``textOptions``.
+    
+    To move or add and remove files, specify the desired ``moveMode``.
+    
+    To transform source names when transferring them to the work copy, specify a transformation
+    function in ``nameTransformation``. For an example of such a function, see
+    `LowerNameTransformation`.
+    
+    To include and exclude only certain files, specify a ant-like pattnern text in
+    ``includePatternText`` and ``excludePatternText``. See `antglob` for details on how to specify
+    such patterns. For example, ``includePatternText='**/*.py, **/*.rst'`` would consider all files
+    with a suffix of '*.py' or '*.rst'.
+    
+    To preserve files in the work copy even when their are no such files in ``sourceFolderPath``,
+    specify them usin a ant-like pattern in ``workOnlyPattern``.
 
-def scunch(sourceFolderPath, scmWork, textOptions=None, move=ScmPuncher.MoveName, nameTransformation=IdentityNameTransformation, includePatternText=None, excludePatternText=None, workOnlyPatternText=None):
+    See also: `ScmPuncher`.
+    """
     assert sourceFolderPath is not None
-    assert move in ScmPuncher._ValidMoveModes
+    assert moveMode in ScmPuncher._ValidMoveModes
 
     puncher = ScmPuncher(scmWork)
-    puncher.moveMode = move
+    puncher.moveMode = moveMode
     puncher.nameTransformation = nameTransformation
     puncher.textOptions = textOptions
-    puncher.punch(sourceFolderPath, "", includePatternText=includePatternText, excludePatternText=excludePatternText, workOnlyPatternText=workOnlyPatternText)
+    puncher.punch(sourceFolderPath, '', includePatternText=includePatternText, excludePatternText=excludePatternText, workOnlyPatternText=workOnlyPatternText)
 
 _NameToLogLevelMap = {
     'debug': logging.DEBUG,
@@ -2004,7 +2016,7 @@ def main(arguments=None):
                 assert action == _Actions.None_, "action=%r" % action
 
         # Actually punch work copy.
-        scunch(sourceFolderPath, scmWork, textOptions, move=options.moveMode, nameTransformation=nameTransformation, includePatternText=options.includePattern, excludePatternText=options.excludePattern, workOnlyPatternText=options.workOnlyPattern)
+        scunch(sourceFolderPath, scmWork, textOptions, moveMode=options.moveMode, nameTransformation=nameTransformation, includePatternText=options.includePattern, excludePatternText=options.excludePattern, workOnlyPatternText=options.workOnlyPattern)
 
         # Perform actions after punching.
         for action in actionsToPerformAfterPunching:

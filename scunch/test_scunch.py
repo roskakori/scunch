@@ -156,7 +156,7 @@ class _SvnTest(_ScmTest):
         self.scmWork.commit("", "Added test files")
 
 class BasicTest(_SvnTest):
-    def testAddWithNonAsciiFileName(self):
+    def testCanAddNoneAsciiFileName(self):
         self.setUpProject("basic")
         scmWork = self.scmWork
         hello = unicodedata.normalize("NFD", u'h\xe4ll\xf6.py')
@@ -170,13 +170,18 @@ class BasicTest(_SvnTest):
         scmWork.commit("", "Added file with umlauts in name.")
         self.assertNonNormalStatus({})
 
-    def testPurge(self):
+    def testFailsOnMissingWorkCopy(self):
+        nonWorkCopyFolderPath = os.path.join(_BaseTestFolder, 'testFailOnMissingWorkCopy')
+        _tools.makeEmptyFolder(nonWorkCopyFolderPath)
+        self.assertRaises(scunch.ScmError, scunch.createScmWork, nonWorkCopyFolderPath)
+        
+    def testCanBePurged(self):
         self.setUpProject("testPurge")
         self.assertTrue(os.path.exists(self.scmWork.localTargetPath))
         self.scmWork.purge()
         self.assertFalse(os.path.exists(self.scmWork.localTargetPath))
         
-    def testReset(self):
+    def testCanBeReset(self):
         self.setUpProject("testReset")
         
         # Modify a few files.
@@ -192,12 +197,17 @@ class BasicTest(_SvnTest):
         self.assertTrue(os.path.exists(forRangePyPath))
         self.assertTrue(os.path.exists(whilePyPath))
         self.assertNonNormalStatus({})
+
+    def testDetectsBrokenAbsolutePath(self):
+        self.setUpEmptyProject("testDetectsBrokenAbsolutePath")
+        self.assertRaises(scunch.ScmError, self.scmWork.absolutePath, 'broken test path', None)
+        self.assertRaises(scunch.ScmError, self.scmWork.absolutePaths, 'broken test path', [])
         
 class ScunchTest(_SvnTest):
     """
     TestCase for `scunch.scunch()`.
     """
-    def testScunchWithClone(self):
+    def testCanPunchClone(self):
         self.setUpProject("scunchWithClone")
         scmWork = self.scmWork
 
@@ -207,7 +217,7 @@ class ScunchTest(_SvnTest):
         scunch.scunch(testScunchWithClonePath, scmWork)
         self.assertNonNormalStatus({})
 
-    def testScunchWithChanges(self):
+    def testCanPunchModifiedFiles(self):
         self.setUpProject("scunchWithChanges")
         scmWork = self.scmWork
 
@@ -251,17 +261,41 @@ class ScunchTest(_SvnTest):
         finally:
             _log.setLevel(oldLogLevel)
 
-    def testMainHelp(self):
+    def testCanShowOnlineHelp(self):
         self._testMainWithSystemExit(["--help"])
 
-    def testMainVersion(self):
+    def testCanShowVersionInformation(self):
         self._testMainWithSystemExit(["--version"])
         
-    def testMainBrokenOption(self):
+    def testFailsWithUnknownOption(self):
         self._testMainWithSystemExit(["--no-such-option"], 2)
 
-    def testMainBrokenAfterAction(self):
+    def testFailsWithBrokenAfterAction(self):
         self._testMainWithSystemExit(["--after", "broken", "external_folder", "work_folder"], 2)
+
+    def testFailsWithDupicateAfterAction(self):
+        self._testMainWithSystemExit(["--after", "commit, commit", "external_folder", "work_folder"], 2)
+
+    def testFailsWithBrokenBeforeAction(self):
+        self._testMainWithSystemExit(['--before', 'broken', 'external_folder', 'work_folder'], 2)
+
+    def testFailsWithBrokenTabSize(self):
+        self._testMainWithSystemExit(['--text', '**/*.py', '--tabsize', '-1', 'external_folder', 'work_folder'], 2)
+
+    def testFailsWithOptionNewlineWithoutTextPattern(self):
+        self._testMainWithSystemExit(['--newline', 'external_folder', 'work_folder'], 2)
+
+    def testFailsWithOptionTabsizeWithoutTextPattern(self):
+        self._testMainWithSystemExit(['--tabsize', 'external_folder', 'work_folder'], 2)
+
+    def testFailsWithOptionStripTrailingWithoutTextPattern(self):
+        self._testMainWithSystemExit(['--strip-trailing', 'external_folder', 'work_folder'], 2)
+
+    def testFailsWithUnregognizedOption(self):
+        self._testMainWithSystemExit(['external_folder', 'work_folder', 'some_unrecognized_option'], 2)
+
+    def testFailsWithSourceFolder(self):
+        self._testMainWithSystemExit([], 2)
 
     def testMainWithImplicitWork(self):
         self.setUpProject("mainWithImplicitWork")
@@ -277,7 +311,7 @@ class ScunchTest(_SvnTest):
         
         self._testMain([testScunchWithImplicitWorkPath], implicitWorkPath)
 
-    def testMainWithWorkOnlyPattern(self):
+    def testCanPreserveFilesMatchingWorkOnlyPattern(self):
         self.setUpProject("mainWithWorkOnlyPattern")
         scmWork = self.scmWork
 
@@ -706,7 +740,6 @@ class ScmPuncherTest(_SvnTest):
 
         self.assertNonNormalStatus({scunch.ScmStatus.Unversioned: 1, scunch.ScmStatus.Missing: 1})
         # TODO: Remove: self._testAfterPunch(testPunchWithPatternPath)
-
 
 if __name__ == '__main__':
     scunch._setUpLogging(logging.DEBUG)
