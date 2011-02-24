@@ -53,10 +53,6 @@ def humanReadableList(items):
     
     >>> humanReadableList(['red', 'green', 'blue'])
     u"'red', 'green' or 'blue'"
-    >>> humanReadableList(['red'])
-    u"'red'"
-    >>> humanReadableList([])
-    u''
     """
     assert items is not None
     listItems = list(items)
@@ -81,10 +77,6 @@ def oneOrOtherText(count, oneText, otherText):
     """
     Text depending ``count`` to properly use singular and plural.
 
-    >>> oneOrOtherText(0, 'item', 'items')
-    u'0 items'
-    >>> oneOrOtherText(1, 'item', 'items')
-    u'1 item'
     >>> oneOrOtherText(2, 'item', 'items')
     u'2 items'
     """

@@ -41,6 +41,29 @@ class FolderTest(unittest.TestCase):
         # Clean up.
         _tools.removeFolder(testFolderPath)
 
+class HumanReadableListTest(unittest.TestCase):
+    def testRendersEmptyListAsEmptyText(self):
+        self.assertEqual(u'', _tools.humanReadableList([]))
+
+    def testRendersSingleItemWithoutSeparator(self):
+        self.assertEqual(u"'red'", _tools.humanReadableList(['red']))
+
+    def testRendersTwoItemsWithOr(self):
+        self.assertEqual(u"'red' or 'green'", _tools.humanReadableList(['red', 'green']))
+
+    def testRendersMutipleItemsWithCommaAndOr(self):
+        self.assertEqual(u"'red', 'green' or 'blue'", _tools.humanReadableList(['red', 'green', 'blue']))
+
+class OneOrOtherTextTest(unittest.TestCase):
+    def testShows0AsPlural(self):
+        self.assertEqual(u'0 items', _tools.oneOrOtherText(0, 'item', 'items'))
+
+    def testShows1AsSingular(self):    
+        self.assertEqual(u'1 item', _tools.oneOrOtherText(1, 'item', 'items'))
+
+    def testShows2AsPlural(self):
+        self.assertEqual(u'2 items', _tools.oneOrOtherText(2, 'item', 'items'))
+
 if __name__ == '__main__': # pragma: no cover
     logging.basicConfig(level=logging.INFO)
     unittest.main()
