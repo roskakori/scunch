@@ -482,7 +482,7 @@ def _splitTextParts(text, fixAllMagicAtEnd=False):
         remainingText = text.replace('\\', pathSeperator)
     elif pathSeperator == '\\':
         remainingText = text.replace('/', pathSeperator)
-    else:
+    else: # pragma: no cover
         raise NotImplementedError(u'cannot split unknown path separator: %r' % pathSeperator)
     if fixAllMagicAtEnd and remainingText.endswith(pathSeperator):
         remainingText += _AntAllMagic
@@ -681,8 +681,7 @@ class AntPatternSet(object):
         """
         assert folderToScanPath is not None
         for relativePath in self._findInFolder(folderToScanPath, addFolders):
-            if relativePath.startswith(os.sep):
-                assert not relativePath.startswith(os.sep), 'relativePath=%r' % relativePath
+            assert not os.path.isabs(relativePath), 'relativePath=%r' % relativePath
             yield relativePath
 
     def find(self, folderToScanPath=os.getcwdu(), addFolders=False):
