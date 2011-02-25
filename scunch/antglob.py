@@ -190,7 +190,7 @@ class FileSystemEntry(object):
         self.setParts(parts)
         try:
             entryInfo = os.stat(self.path)
-        except OSError, error:
+        except OSError, error: # pragma: no cover
             if error.errno == errno.ENOENT:
                 raise AntPatternError(u'file system entry must remain during processing but was removed in the background: %r' % self.path)
             else:
@@ -200,8 +200,8 @@ class FileSystemEntry(object):
             self._kind = FileSystemEntry.Folder
         elif stat.S_ISREG(entryMode):
             self._kind = FileSystemEntry.File
-        else:
-            raise AntPatternError(u'file system entry must be a folder or file: %r' % self.path)
+        else:  # pragma: no cover
+            raise NotImplementedError(u'currently file system entry must be a folder or file: %r' % self.path)
         self.size = entryInfo.st_size
         self.timeModified = entryInfo.st_mtime
 

@@ -1081,10 +1081,8 @@ def _sortedFileSystemEntries(entriesToSort):
         assert other is not None
 
         # Sort folders before files, hence '-'.
-        typeComparison = -cmp(some.kind, other.kind)
-        if typeComparison:
-            result = typeComparison
-        else:
+        result = -cmp(some.kind, other.kind)
+        if not result:
             result = cmp(some.parts, other.parts)
         return result
 

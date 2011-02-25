@@ -15,6 +15,7 @@ Tests for scunch.
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import fnmatch
 import logging
 import os
 import shutil
@@ -169,6 +170,30 @@ class BasicTest(_SvnTest):
         self.assertNonNormalStatus({scunch.ScmStatus.Added: 1})
         scmWork.commit("", "Added file with umlauts in name.")
         self.assertNonNormalStatus({})
+
+    def testCanRunConsoleCommand(self):
+        scunch.run(['svn', '--version'])
+        lines = scunch.run(['svn', '--version'], True)
+        self.assertTrue(lines)
+        firstLine = lines[0]
+        self.assertTrue(firstLine.startswith('svn'), 'first line must start with \'svn\' but is: %r' % firstLine)
+        scunch.run(['svn', '--version'], False, os.curdir)
+
+    def testFailOnBrokenConsoleCommand(self):
+        try:
+            scunch.run(['svn', '--no_such_option'])
+            self.fail('broken command must cause ScmError')
+        except scunch.ScmError, error:
+            self.assertEqual('cannot perform shell command \'svn\'. Error: svn: invalid option: --no_such_option. Command:  svn --no_such_option', str(error))
+
+    def testFailOnUnknownConsoleCommand(self):
+        try:
+            scunch.run(['no_such_command'])
+            self.fail('broken command must cause ScmError')
+        except scunch.ScmError, error:
+            actualErrorMessage = str(error)
+            expectedErrorMessagePattern = 'cannot perform shell command \'no_such_command\': ?Errno *. Command:  no_such_command'
+            self.assertTrue(fnmatch.fnmatch(actualErrorMessage, expectedErrorMessagePattern), 'error message must match pattern %r but is: %r' % (expectedErrorMessagePattern, actualErrorMessage))
 
     def testFailsOnMissingWorkCopy(self):
         nonWorkCopyFolderPath = os.path.join(_BaseTestFolder, 'testFailOnMissingWorkCopy')
