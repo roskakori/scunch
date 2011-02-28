@@ -326,7 +326,7 @@ class ScunchTest(_SvnTest):
         self._testMainWithSystemExit(['--text', '**/*.py', '--tabsize', '-1', 'external_folder', 'work_folder'], 2)
 
     def testFailsWithOptionNewlineWithoutTextPattern(self):
-        self._testMainWithSystemExit(['--newline', 'external_folder', 'work_folder'], 2)
+        self._testMainWithSystemExit(['--newline', 'lf', 'external_folder', 'work_folder'], 2)
 
     def testFailsWithOptionTabsizeWithoutTextPattern(self):
         self._testMainWithSystemExit(['--tabsize', '4', 'external_folder', 'work_folder'], 2)
