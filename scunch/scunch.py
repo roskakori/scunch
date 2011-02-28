@@ -622,6 +622,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Version history
 ===============
 
+**Version 0.5.6, 2011-03-xx**
+
+* Changed file attributes of transferred text files to use the same
+  attributes as the source file.
+
 **Version 0.5.5, 2011-02-28**
 
 * Fixed ``--before=reset``, which did not remove unversioned added folders.
@@ -745,7 +750,7 @@ from xml.sax.handler import ContentHandler
 import antglob
 import _tools
 
-__version_info__ = (0, 5, 5)
+__version_info__ = (0, 5, 6)
 __version__ = '.'.join(unicode(item) for item in __version_info__)
 
 _log = logging.getLogger("scunch")
@@ -1305,14 +1310,21 @@ class ScmPuncher(object):
             else:
                 _log.debug('skip transferable entry in removed folder: "%s"', entryToTransfer._relativePath)
 
+    def _copyBinaryFile(self, sourceFilePath, targetFilePath):
+        assert sourceFilePath is not None
+        assert targetFilePath is not None
+        shutil.copy2(sourceFilePath, targetFilePath)
+
     def _copyTextFile(self, sourceFilePath, targetFilePath, textOptions):
+        assert sourceFilePath is not None
+        assert targetFilePath is not None
         assert textOptions is not None
         with open(sourceFilePath, "rb") as sourceFile:
             with open(targetFilePath, "wb") as targetFile:
                 for line in sourceFile:
                     lineToWrite = textOptions.convertedLine(line)
                     targetFile.write(lineToWrite)
-        # TODO: Copy attributes similar to `shutil.copy2()`.
+        shutil.copystat(sourceFilePath, targetFilePath)
 
     def _transferEntryFromExternalToWork(self, entryToTransfer, textOptions):
         assert entryToTransfer is not None
@@ -1321,7 +1333,7 @@ class ScmPuncher(object):
         if textOptions and textOptions.isText(entryToTransfer):
             self._copyTextFile(externalPathOfEntryToTransferFrom, workPathOfItemToTransferTo, textOptions)
         else:
-            shutil.copy2(externalPathOfEntryToTransferFrom, workPathOfItemToTransferTo)
+            self._copyBinaryFile(externalPathOfEntryToTransferFrom, workPathOfItemToTransferTo)
 
     def _setExternalAndWorkEntries(self, externalFolderPath, relativeWorkFolderPath, includePatternText, excludePatternText, workOnlyPatternText):
         assert externalFolderPath is not None
