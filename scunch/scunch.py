@@ -611,6 +611,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Version history
 ===============
 
+**Version 0.5.5, 2011-02-28**
+
+* Fixed ``--before=reset``, which did not remove unversioned added folders.
+* Cleaned up code.
+
 **Version 0.5.4, 2011-02-23**
 
 * Improved validation of command line options.
@@ -729,7 +734,7 @@ from xml.sax.handler import ContentHandler
 import antglob
 import _tools
 
-__version_info__ = (0, 5, 4)
+__version_info__ = (0, 5, 5)
 __version__ = '.'.join(unicode(item) for item in __version_info__)
 
 _log = logging.getLogger("scunch")
@@ -1614,7 +1619,7 @@ class ScmWork(object):
                     raise ScmError(u"path to reset must be either a file or directory: \"%s\"" % pathToRemove)
         for folderPathToRemove in folderPathsToRemove:
             _log.debug("    remove folder \"%s\"", folderPathToRemove)
-            # TODO: shutil.rmtree(folderPathToRemove)
+            shutil.rmtree(folderPathToRemove)
 
     def update(self, relativePathToUpdate=""):
         _log.info("update out work copy at \"%s\"", self.localTargetPath)

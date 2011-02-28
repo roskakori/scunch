@@ -209,11 +209,17 @@ class BasicTest(_SvnTest):
     def testCanBeReset(self):
         self.setUpProject("testReset")
         
-        # Modify a few files.
+        # Modify a and add few files.
+        addedFolderPath = self.scmWork.absolutePath("test folder to add", "addedFolder")
         addedPyPath = self.scmWork.absolutePath("test file to add", os.path.join("loops", "added.py"))
         forRangePyPath = self.scmWork.absolutePath("test file to remove", os.path.join("loops", "forRange.py"))
         whilePyPath = self.scmWork.absolutePath("test file to change", os.path.join("loops", "while.py"))
+
+        # Add a folder and a file.
+        _tools.makeEmptyFolder(addedFolderPath)
         self.writeTextFile(addedPyPath, ["# Just some added file."])
+
+        # Remove a file
         os.remove(forRangePyPath)
         self.writeTextFile(whilePyPath, ["# Just some changed file."])
 
