@@ -4,7 +4,7 @@
 Scunch
 ======
 
-Scunch updates a working copy of a source code management (SCM) system
+Scunch updates a work copy of a source code management (SCM) system
 from an external folder and copies, adds and removes files and folders as
 necessary.
 
@@ -16,6 +16,17 @@ Intended scenarios of use are:
   resources such as server configuration files.
 * Migration of projects using folder based version management to a proper
   SCM.
+
+Main features are:
+
+* Flexible command line interface for easy automation.
+* Support for ant patterns to specify the files to be processed.
+* Optional conversion of text files to ensure consistency and save storage
+  space.
+* Optional transformation of file names to lower case to prevent issues with
+  case sensitive repositories and case insensitive file systems.
+* Optional actions to be taken before and after updating the work copy to
+  ensure consistency and prevent pending changes.
 
 .. TODO: Elaborate the below scenario.
 .. Pseudo version management for users that have issues with manual version
