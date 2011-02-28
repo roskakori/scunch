@@ -776,7 +776,6 @@ class ScmPuncherTest(_SvnTest):
         self.assertFalse(os.path.exists(readMeTxtWorkPath))
 
         self.assertNonNormalStatus({scunch.ScmStatus.Unversioned: 1, scunch.ScmStatus.Missing: 1})
-        # TODO: Remove: self._testAfterPunch(testPunchWithPatternPath)
 
 if __name__ == '__main__': # pragma: no cover
     scunch._setUpLogging(logging.DEBUG)

@@ -88,7 +88,6 @@ _log = logging.getLogger('antglob')
 
 _AntAllMagic = '**'
 _AntMagicRegEx = re.compile('[*?[]')
-# TODO: Use _NotFound = -1; or use ``None`` to indicate a "not found".
 
 # Patterns to exclude by default similar to ant 1.8.2.
 DefaultExcludes = (
@@ -310,14 +309,13 @@ def _findItemInList(needle, haystack):
     return _findListInList([needle], haystack)
 
 def _findListInList(needle, haystack):
-    result = -1
+    result = None
     needleLength = len(needle)
     haystackLength = len(haystack)
     if needle:
         indexToCheck = 0
-        while (result == -1) and (indexToCheck + needleLength <= haystackLength):
+        while (result is None) and (indexToCheck + needleLength <= haystackLength):
             haystackPartToCompareWithNeedle = haystack[indexToCheck:indexToCheck + needleLength]
-            # TODO: Remove: print indexToCheck + needleLength, haystackLength, haystackPartToCompareWithNeedle
             if needle == haystackPartToCompareWithNeedle:
                 result = indexToCheck
             else:
@@ -338,13 +336,12 @@ def _indexInTextItemsWherePatternPartsMatch(textParts, patternParts):
     # This functions only is useful for ``patternParts`` between "** and another "**".
     assert patternParts
 
-    result = -1
+    result = None
     textItemsCount = len(textParts)
     patternItemsCount = len(patternParts)
     indexToCheck = 0
-    while (result == -1) and (indexToCheck + patternItemsCount <= textItemsCount):
+    while (result is None) and (indexToCheck + patternItemsCount <= textItemsCount):
         textItemsPartToCompareWithPatternItems = textParts[indexToCheck:indexToCheck + patternItemsCount]
-        # TODO: Remove: print indexToCheck + patternItemsCount, textItemsCount, textItemsPartToCompareWithPatternItems
         if _textItemsMatchPatternItems(textItemsPartToCompareWithPatternItems, patternParts):
             result = indexToCheck
         else:
@@ -353,19 +350,19 @@ def _indexInTextItemsWherePatternPartsMatch(textParts, patternParts):
 
 def _findTextItemsInPatternItems(textItems, patternItems):
     """
-    Index where ``textItems`` are found in ``patternItems`` or -1.
+    Index where ``textItems`` are found in ``patternItems`` or ``None``.
     """
     assert textItems is not None
     assert patternItems is not None
     for patternItem in patternItems:
         assert patternItem.kind != AntPatternItem.All
 
-    result = -1
+    result = None
     textItemsLength = len(textItems)
     if textItemsLength:
         patternItemsLength = len(patternItems)
         patternItemIndexToStartSearchAt = 0
-        while (result == -1) and (patternItemIndexToStartSearchAt + textItemsLength) <= patternItemsLength:
+        while (result is None) and (patternItemIndexToStartSearchAt + textItemsLength) <= patternItemsLength:
             patternItemsToMatch = patternItems[patternItemIndexToStartSearchAt:patternItemIndexToStartSearchAt + textItemsLength]
             if _textItemsMatchPatternItems(textItems, patternItemsToMatch):
                 result = patternItemIndexToStartSearchAt
@@ -384,7 +381,7 @@ def _textItemsAreInPatternItems(textItems, patternItems):
     for patternItem in patternItems:
         assert patternItem.kind != AntPatternItem.All
 
-    return (_findTextItemsInPatternItems(textItems, patternItems) != -1)
+    return (_findTextItemsInPatternItems(textItems, patternItems) is not None)
 
 def _textItemsAreAtEndOfPatternItems(textItems, patternItems):
     assert textItems is not None
@@ -414,12 +411,12 @@ def _textItemsMatchPatternItems(textItems, patternItems):
                     result = True
                 else:
                     patternItemIndexOfNextAntAllMagic = _findItemInList(_AntAllMagic, patternItems[1:])
-                    if patternItemIndexOfNextAntAllMagic != -1:
+                    if patternItemIndexOfNextAntAllMagic is not None:
                         # Adjust for the fact that we started to search after the first pattern item.
                         patternItemIndexOfNextAntAllMagic += 1
                     assert patternItemIndexOfNextAntAllMagic != 1, 'consecutive %r must be reduced to 1' % _AntAllMagic
                     _log.debug('    patternItemIndexOfNextAntAllMagic=%s', patternItemIndexOfNextAntAllMagic)
-                    if patternItemIndexOfNextAntAllMagic == -1:
+                    if patternItemIndexOfNextAntAllMagic is None:
                         # Last "**" encountered; check that tail of text matches end of remaining pattern.
                         patternItemsAfterAllMagic = patternItems[1:]
                         _log.debug('    patternItemsAfterAllMagic=%s', patternItemsAfterAllMagic)

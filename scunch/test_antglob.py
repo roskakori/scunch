@@ -50,9 +50,9 @@ class TextItemsTest(unittest.TestCase):
         self.assertEqual(antglob._indexInTextItemsWherePatternPartsMatch(antglob._splitTextParts('abc/d'), patternItems), 0)
         self.assertEqual(antglob._indexInTextItemsWherePatternPartsMatch(antglob._splitTextParts('0/abc/d'), patternItems), 1)
         self.assertEqual(antglob._indexInTextItemsWherePatternPartsMatch(antglob._splitTextParts('abc/d/e'), patternItems), 0)
-        self.assertEqual(antglob._indexInTextItemsWherePatternPartsMatch(antglob._splitTextParts('abc'), patternItems), -1)
-        self.assertEqual(antglob._indexInTextItemsWherePatternPartsMatch(antglob._splitTextParts('cannot/find/me'), patternItems), -1)
-        self.assertEqual(antglob._indexInTextItemsWherePatternPartsMatch(antglob._splitTextParts(''), patternItems), -1)
+        self.assertEqual(antglob._indexInTextItemsWherePatternPartsMatch(antglob._splitTextParts('abc'), patternItems), None)
+        self.assertEqual(antglob._indexInTextItemsWherePatternPartsMatch(antglob._splitTextParts('cannot/find/me'), patternItems), None)
+        self.assertEqual(antglob._indexInTextItemsWherePatternPartsMatch(antglob._splitTextParts(''), patternItems), None)
 
 class AntPatternTest(unittest.TestCase):
     def testShowsAsString(self):
@@ -73,11 +73,11 @@ class AntPatternTest(unittest.TestCase):
         self.assertEqual(antglob._findListInList([2], [5, 4, 2, 7]), 2)
         self.assertEqual(antglob._findListInList([5], [5, 4, 2, 7]), 0)
         self.assertEqual(antglob._findListInList([7], [5, 4, 2, 7]), 3)
-        self.assertEqual(antglob._findListInList([17], [5, 4, 2, 7]), -1)
+        self.assertEqual(antglob._findListInList([17], [5, 4, 2, 7]), None)
         self.assertEqual(antglob._findListInList([5, 4], [5, 4, 2, 7]), 0)
         self.assertEqual(antglob._findListInList([4, 2], [5, 4, 2, 7]), 1)
         self.assertEqual(antglob._findListInList([2, 7], [5, 4, 2, 7]), 2)
-        self.assertEqual(antglob._findListInList([4, 3], [5, 4, 2, 7]), -1)
+        self.assertEqual(antglob._findListInList([4, 3], [5, 4, 2, 7]), None)
      
     def testCanMatchPatternsWithoutPlaceholders(self):
         pattern = antglob.AntPattern('hugo')
