@@ -622,8 +622,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Version history
 ===============
 
-**Version 0.5.6, 2011-03-xx**
+**Version 0.5.6, 2011-03-04**
 
+* #20: Changed ``--names`` to fail in case the work copy already contains
+  existing entries not complying to the name transformation.
 * Changed file attributes of transferred text files to use the same
   attributes as the source file.
 
@@ -901,7 +903,7 @@ class ScmError(Exception):
     """
     pass
 
-class ScmPendingChangesError(Exception):
+class ScmPendingChangesError(ScmError):
     """
     Error indicating that an SCM operation could not be performed due to
     pending. To solve this, either commit or discard the changes and try
@@ -909,11 +911,34 @@ class ScmPendingChangesError(Exception):
     """
     pass
 
-class ScmNameClashError(Exception):
+class ScmNameClashError(ScmError):
     """
     Error raised whan an SCM operation results in a name clash.
     """
     pass
+
+class ScmNameTransformationError(ScmError):
+    """
+    Error raised when existing entries in the work copy do not comply to the
+    specified name transformation.
+    """
+    def __init__(self, existingToTransformedPathMap):
+        assert existingToTransformedPathMap
+        self._existingToTransformedPathMap = existingToTransformedPathMap
+
+    def __unicode__(self):
+        return u'%s must be renamed in order to comply with name transformation' % _tools.oneOrOtherText(len(self._existingToTransformedPathMap), 'existing work copy entry', 'existing work copy entries')
+        
+    def __str__(self):
+        return unicode(self).encode('utf-8')
+    
+    def __repr__(self):
+        return self.__str__()
+
+    def _getExistingToTransformedPathMap(self):
+        return self._existingToTransformedPathMap
+
+    existingToTransformedPathMap = property(_getExistingToTransformedPathMap, doc='Mapping to existing current work entry path to transformed path.')
 
 class ScmStatus(object):
     Added = 'added'
@@ -1369,8 +1394,17 @@ class ScmPuncher(object):
         self.workEntries = _sortedFileSystemEntries(self.workEntries)
         workEntryCount = len(self.workEntries)
         _log.info('found %d work %s in "%s"', workEntryCount, _tools.oneOrOtherText(workEntryCount, 'entry', 'entries'), self.scmWork.absolutePath("work path", relativeWorkFolderPath))
-        for item in self.workEntries:
-            _log.debug('  %s', item)
+        
+        # Find existing work entries that do not comply to name transformation.
+        workEntriesNotComplyingWithNameTransformationMap = {}
+        for workEntry in self.workEntries:
+            _log.debug('  %s', workEntry)
+            if self.nameTransformation:
+                transformedWorkEntry = self._createTransformedFileSystemEntry(workEntry)
+                if workEntry.relativePath != transformedWorkEntry.relativePath:
+                    workEntriesNotComplyingWithNameTransformationMap[workEntry.relativePath] = transformedWorkEntry.relativePath
+        if workEntriesNotComplyingWithNameTransformationMap:
+            raise ScmNameTransformationError(workEntriesNotComplyingWithNameTransformationMap)
 
     def _createTransformedFileSystemEntry(self, entry):
         assert entry is not None
@@ -2057,6 +2091,11 @@ def main(arguments=None):
         exitCode = 0
     except ScmPendingChangesError, error:
         _log.error("%s To resolve this, use '--before=reset' to discard the changes or '--before=none' to ignore them." % error)
+        exitError = error
+    except ScmNameTransformationError, error:
+        _log.error(u'%s', error)
+        for existingWorkPath, transformedWorkPath in error.existingToTransformedPathMap.items():
+            _log.error(u'  "%s" --> "%s"', existingWorkPath, transformedWorkPath)
         exitError = error
     except (EnvironmentError, ScmError), error:
         _log.error("%s", error)

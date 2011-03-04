@@ -26,7 +26,7 @@ from urlparse import urljoin
 
 import scunch
 import _tools
-from scunch import ScmPendingChangesError
+from scunch import ScmPendingChangesError, ScmNameTransformationError
 
 _log = logging.getLogger("test")
 
@@ -179,14 +179,14 @@ class BasicTest(_SvnTest):
         self.assertTrue(firstLine.startswith('svn'), 'first line must start with \'svn\' but is: %r' % firstLine)
         scunch.run(['svn', '--version'], False, os.curdir)
 
-    def testFailOnBrokenConsoleCommand(self):
+    def testFailsOnBrokenConsoleCommand(self):
         try:
             scunch.run(['svn', '--no_such_option'])
             self.fail('broken command must cause ScmError')
         except scunch.ScmError, error:
             self.assertEqual('cannot perform shell command \'svn\'. Error: svn: invalid option: --no_such_option. Command:  svn --no_such_option', str(error))
 
-    def testFailOnUnknownConsoleCommand(self):
+    def testFailsOnUnknownConsoleCommand(self):
         try:
             scunch.run(['no_such_command'])
             self.fail('broken command must cause ScmError')
@@ -486,6 +486,20 @@ class ScunchTest(_SvnTest):
         self._testMain(["--before", "reset, update", "--after", "commit, purge", testScunchWithResetUpdateCommitPurgePath, scmWork.localTargetPath])
         self.assertFalse(os.path.exists(scmWork.localTargetPath))
 
+    def testFailsWithLowerNameTransformationAndExistingMixedName(self):
+        self.setUpProject("lowerNameTransformation")
+        scmWork = self.scmWork
+
+        testScunchWithCommitPath = self.createTestFolder("testFailsWithLowerNameTransformationAndExistingMixedName")
+        scmWork.exportTo(testScunchWithCommitPath, clear=True)
+        
+        workFolderPath = scmWork.absolutePath("work folder", "")
+        workReadmeTxtPath = self.scmWork.absolutePath("test file path", "ReadMe.txt")
+        self.assertTrue(os.path.exists(workReadmeTxtPath))
+
+        self._testMain(["--names", "lower", testScunchWithCommitPath, workFolderPath], expectedExitCode=1)
+
+
 class ScmPuncherTest(_SvnTest):
     """
     TestCase for `scunch.ScmPuncher`.
@@ -588,9 +602,28 @@ class ScmPuncherTest(_SvnTest):
 
         if hasLowerSomeTxt and hasMixedSomeTxt:
             clashingPuncher = scunch.ScmPuncher(self.scmWork)
-            self.assertRaises(scunch.ScmNameClashError, clashingPuncher.punch, externalPunchWithLowerNameClashPath, names=scunch.LowerNameTransformation)
+            clashingPuncher.nameTransformation = scunch.LowerNameTransformation
+            self.assertRaises(scunch.ScmNameClashError, clashingPuncher.punch, externalPunchWithLowerNameClashPath)
         else:
             _log.info('skipping test on case insensitive file system: %s', 'testPunchWithLowerNameClash')
+
+    def testFailsOnLowerNameTransformationAndExistingMixedNames(self):
+        self.setUpProject("punchBrokenLowerNameTransformation")
+        scmWork = self.scmWork
+
+        testPunchBrokenLowerNameTransformationPath = self.createTestFolder("testPunchBrokenLowerNameTransformation")
+        scmWork.exportTo(testPunchBrokenLowerNameTransformationPath, clear=True)
+        readMePath = os.path.join(testPunchBrokenLowerNameTransformationPath, "ReadMe.txt")
+        os.path.exists(readMePath)
+
+        lowerPuncher = scunch.ScmPuncher(scmWork)
+        lowerPuncher.nameTransformation = scunch.LowerNameTransformation
+        try:
+            lowerPuncher.punch(testPunchBrokenLowerNameTransformationPath)
+            self.fail('punch must fail with ScmNameTransformationError')
+        except ScmNameTransformationError, error:
+            self.assertTrue(error.existingToTransformedPathMap)
+            self.assertTrue(os.path.basename(readMePath) in error.existingToTransformedPathMap)
 
     def testPunchWithModify(self):
         self.setUpProject("punchWithModify")
