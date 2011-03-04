@@ -1376,7 +1376,7 @@ class ScmPuncher(object):
         self.externalEntries = filesToPunchPatternSet.findEntries(externalFolderPath)
         self.externalEntries = _sortedFileSystemEntries(self.externalEntries)
         externalEntryCount = len(self.externalEntries)
-        _log.info('found %d external %s in "%s"', externalEntryCount, _tools.oneOrOtherText(externalEntryCount, 'entry', 'entries'), self._externalFolderPath)
+        _log.info('found %s in "%s"', _tools.oneOrOtherText(externalEntryCount, 'external entry', 'external entries'), self._externalFolderPath)
 
         # Check that external items do not contain any work only items.
         if workOnlyPatternText:
@@ -1393,7 +1393,7 @@ class ScmPuncher(object):
         self.workEntries = self.scmWork.findEntries(relativeWorkFolderPath, filesToPunchPatternSet)
         self.workEntries = _sortedFileSystemEntries(self.workEntries)
         workEntryCount = len(self.workEntries)
-        _log.info('found %d work %s in "%s"', workEntryCount, _tools.oneOrOtherText(workEntryCount, 'entry', 'entries'), self.scmWork.absolutePath("work path", relativeWorkFolderPath))
+        _log.info('found %s in "%s"', _tools.oneOrOtherText(workEntryCount, 'work entry', 'work entries'), self.scmWork.absolutePath("work path", relativeWorkFolderPath))
         
         # Find existing work entries that do not comply to name transformation.
         workEntriesNotComplyingWithNameTransformationMap = {}
