@@ -1350,8 +1350,8 @@ class ScmPuncher(object):
         # Collect external items.
         self.externalEntries = filesToPunchPatternSet.findEntries(externalFolderPath)
         self.externalEntries = _sortedFileSystemEntries(self.externalEntries)
-        # TODO: Fix singular/plural in log.
-        _log.info('found %d external entries in "%s"', len(self.externalEntries), self._externalFolderPath)
+        externalEntryCount = len(self.externalEntries)
+        _log.info('found %d external %s in "%s"', externalEntryCount, _tools.oneOrOtherText(externalEntryCount, 'entry', 'entries'), self._externalFolderPath)
 
         # Check that external items do not contain any work only items.
         if workOnlyPatternText:
@@ -1367,8 +1367,8 @@ class ScmPuncher(object):
             filesToPunchPatternSet.exclude(workOnlyPatternText)
         self.workEntries = self.scmWork.findEntries(relativeWorkFolderPath, filesToPunchPatternSet)
         self.workEntries = _sortedFileSystemEntries(self.workEntries)
-        # TODO: Fix singular/plural in log.
-        _log.info('found %d work entries in "%s"', len(self.workEntries), self.scmWork.absolutePath("work path", relativeWorkFolderPath))
+        workEntryCount = len(self.workEntries)
+        _log.info('found %d work %s in "%s"', workEntryCount, _tools.oneOrOtherText(workEntryCount, 'entry', 'entries'), self.scmWork.absolutePath("work path", relativeWorkFolderPath))
         for item in self.workEntries:
             _log.debug('  %s', item)
 
