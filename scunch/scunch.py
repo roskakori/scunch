@@ -1293,7 +1293,7 @@ class ScmPuncher(object):
         originalExternalEntry = self._renamedToOriginalExternalEntriesMap[renamedExternalEntry]
         return originalExternalEntry.absolutePath(self._externalFolderPath)
 
-    def _assertScheduledItemIsUnique(self, entryToSchedule, operation):
+    def _assertScheduledEntryIsUnique(self, entryToSchedule, operation):
         """
         Assert that a folder item ``entryToSchedule` scheduled for ``operation`` has not been
         scheduled for any other operation so far.
@@ -1311,7 +1311,7 @@ class ScmPuncher(object):
         for entryToAdd in entries:
             if not self._isInLastRemovedFolder(entryToAdd):
                 _log.debug('schedule entry for add: "%s"', entryToAdd._relativePath)
-                self._assertScheduledItemIsUnique(entryToAdd, 'add')
+                self._assertScheduledEntryIsUnique(entryToAdd, 'add')
                 self._entriesToAdd.append(entryToAdd)
             else:
                 _log.debug('skip added entry in removed folder: "%s"', entryToAdd._relativePath)
@@ -1320,7 +1320,7 @@ class ScmPuncher(object):
         for entryToRemove in entries:
             if not self._isInLastRemovedFolder(entryToRemove):
                 _log.debug('schedule entry for remove: "%s"', entryToRemove._relativePath)
-                self._assertScheduledItemIsUnique(entryToRemove, 'remove')
+                self._assertScheduledEntryIsUnique(entryToRemove, 'remove')
                 self._entriesToRemove.append(entryToRemove)
             else:
                 _log.debug('skip removed entry in removed folder: "%s"', entryToRemove._relativePath)
@@ -1330,7 +1330,7 @@ class ScmPuncher(object):
             if not self._isInLastRemovedFolder(entryToTransfer):
                 # TODO: Add option to consider entries modified by only checking their date.
                 _log.debug('schedule entry for transfer: "%s"', entryToTransfer._relativePath)
-                self._assertScheduledItemIsUnique(entryToTransfer, 'transfer')
+                self._assertScheduledEntryIsUnique(entryToTransfer, 'transfer')
                 self._entriesToTransfer.append(entryToTransfer)
             else:
                 _log.debug('skip transferable entry in removed folder: "%s"', entryToTransfer._relativePath)
