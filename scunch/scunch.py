@@ -1333,8 +1333,9 @@ class ScmPuncher(object):
         for entryToRemove in entries:
             if not self._isInLastRemovedFolder(entryToRemove):
                 _log.debug(u'schedule entry for remove: "%s"', entryToRemove._relativePath)
+                self._setLastRemovedFolder(entryToRemove)
                 self._assertScheduledEntryIsUnique(entryToRemove, 'remove')
-                self._entriesToRemove.append(entryToRemove)
+                self._entriesToRemove.add(entryToRemove)
             else:
                 _log.debug(u'skip removed entry in removed folder: "%s"', entryToRemove._relativePath)
 
@@ -1344,7 +1345,7 @@ class ScmPuncher(object):
                 # TODO: Add option to consider entries modified by only checking their date.
                 _log.debug(u'schedule entry for transfer: "%s"', entryToTransfer._relativePath)
                 self._assertScheduledEntryIsUnique(entryToTransfer, 'transfer')
-                self._entriesToTransfer.append(entryToTransfer)
+                self._entriesToTransfer.add(entryToTransfer)
             else:
                 _log.debug(u'skip transferable entry in removed folder: "%s"', entryToTransfer._relativePath)
 
