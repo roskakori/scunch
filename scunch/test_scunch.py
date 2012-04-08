@@ -1,7 +1,7 @@
 """
 Tests for scunch.
 """
-# Copyright (C) 2011 Thomas Aglassinger
+# Copyright (C) 2011 - 2012 Thomas Aglassinger
 #
 # This program is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published by
@@ -35,12 +35,15 @@ _BaseTestFolder = os.path.abspath("test")
 
 class ToolsTest(unittest.TestCase):
     def testRunWithAsciiEcho(self):
+        scunch._setUpEncoding()
         scunch.run([u"echo", u"hello"])
 
     def testRunWithUmlautEcho(self):
+        scunch._setUpEncoding()
         scunch.run([u"echo", u'h\xe4ll\xf6'])
 
     def testRunWithUmlautEchoResult(self):
+        scunch._setUpEncoding()
         hello = u'h\xe4ll\xf6'
         helloWithUmlauts = scunch.run([u'echo', hello], returnStdout=True)
         normalizedHelloPy = [unicodedata.normalize(scunch._consoleNormalization, hello)]
@@ -138,7 +141,7 @@ class _SvnTest(_ScmTest):
         readmeTxtPath = self.scmWork.absolutePath("test file path", "ReadMe.txt")
         self.writeTextFile(readmeTxtPath, ["Just a dummy project with some test file."])
 
-        # Create a folder "loops" with a couple of Python source codes."
+        # Create a folder "loops" with a couple of Python source codes.
         loopsFolderPath = self.scmWork.absolutePath("test folder path", "loops")
         _tools.makeFolder(loopsFolderPath)
         forRangePyPath = os.path.join(loopsFolderPath, "forRange.py")

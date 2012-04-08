@@ -72,7 +72,7 @@ Here are some hints to install a command line client on popular platforms:
   `MacPorts <http://www.macports.org/>`_.
 * Linux: Use your package manager, for example:
   ``apt-get install subversion``.
-* Windows: Use `Slik SVN <http://www.sliksvn.com/en/download>`_.
+* Windows: Use `SlikSVN <http://www.sliksvn.com/en/download>`_.
 
 
 Usage
@@ -220,7 +220,7 @@ The actions are performed in the given order so make sure to use ``purge``
 last. Also notice the double quotes (") around ``"commit, purge"``. They
 ensure that the shell does not consider ``purge`` a command line option of
 its own.
- 
+
 
 Moving or renaming files
 ------------------------
@@ -308,7 +308,7 @@ situation by itself. However, this might fail and the result typically is a
 
 The first sign of trouble is when ``scunch`` logs the following warning message:
 
-  LC_CTYPE should be set to for example 'en_US;UTF-8' to allow processing of file names with non-ASCII characters
+  LC_CTYPE should be set to for example 'UTF-8' to allow processing of file names with non-ASCII characters
 
 This indicates that the console encoding is set to ASCII and any non ASCII
 characters in file names will result in a ``UnicodeEncodeError``. To fix
@@ -316,11 +316,11 @@ this, you can tell the console the file name encoding by setting the
 environment variable ``LC_CTYPE``. For Mac OS X and most modern Linux
 systems, the following command should do the trick::
 
-  $ export LC_CTYPE=en_US;UTF-8
+  $ export LC_CTYPE=UTF-8
 
 For Windows 7 you can use::
 
-  > set LC_CTYPE=en_US;UTF-8
+  > set LC_CTYPE=UTF-8
 
 Note that this can have implications for other command line utilities, so
 making this a permanent setting in ``.profile`` or ``.bashrc`` might not
@@ -603,7 +603,7 @@ To get a list of Removed files and folders::
 License
 =======
 
-Copyright (C) 2011 Thomas Aglassinger
+Copyright (C) 2011 - 2012 Thomas Aglassinger
 
 This program is free software: you can redistribute it and/or modify it
 under the terms of the GNU Lesser General Public License as published by
@@ -621,6 +621,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 Version history
 ===============
+
+**Version 0.5.7, 2012-04-08**
+
+* Fixed confusing warning message in case LC_CTYPE was not set properly.
+* Fixed logging messages which can now handle non ASCII paths properly.
+* Improved performance by changing some lists to sets.
 
 **Version 0.5.6, 2011-03-04**
 
@@ -717,7 +723,7 @@ Added options to normalize text files and fixed some critical bugs.
 
 * Initial release.
 """
-# Copyright (C) 2011 Thomas Aglassinger
+# Copyright (C) 2011 - 2012 Thomas Aglassinger
 #
 # This program is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published by
@@ -752,7 +758,7 @@ from xml.sax.handler import ContentHandler
 import antglob
 import _tools
 
-__version_info__ = (0, 5, 6)
+__version_info__ = (0, 5, 7)
 __version__ = '.'.join(unicode(item) for item in __version_info__)
 
 _log = logging.getLogger("scunch")
@@ -828,7 +834,7 @@ def _setUpEncoding(consoleEncoding='auto', consoleNormalization='auto'):
     _consoleNormalization = _consoleNormalization.upper()
 
     if _consoleEncoding.lower() in ("ascii", "us-ascii"):
-        _log.warning("LC_CTYPE should be set to for example 'en_US;UTF-8' to allow processing of file names with non-ASCII characters")
+        _log.warning(u"LC_CTYPE should be set to for example 'UTF-8' to allow processing of file names with non-ASCII characters")
     sys.stdout = codecs.getwriter(_consoleEncoding)(sys.stdout)
     sys.stdin = codecs.getreader(_consoleEncoding)(sys.stdin)
 
@@ -928,10 +934,10 @@ class ScmNameTransformationError(ScmError):
 
     def __unicode__(self):
         return u'%s must be renamed in order to comply with name transformation' % _tools.oneOrOtherText(len(self._existingToTransformedPathMap), 'existing work copy entry', 'existing work copy entries')
-        
+
     def __str__(self):
         return unicode(self).encode('utf-8')
-    
+
     def __repr__(self):
         return self.__str__()
 
@@ -1049,7 +1055,7 @@ class _SvnStatusContentHandler(ContentHandler):
             self.currentEntry.status = self._svnStatusAsScmStatus(attributes, "item")
             self.currentEntry.propertiesStatus = self._svnStatusAsScmStatus(attributes, "props")
         elif name not in _SvnStatusContentHandler._ElementsToIgnore:
-            _log.warning("ignored <%s>", name)
+            _log.warning(u"ignored <%s>", name)
 
     def endElement(self, name):
         if name == "entry":
@@ -1216,7 +1222,7 @@ class ScmPuncher(object):
     * Add files that do not exist in the work copy but the folder.
     * Remove files that exist in the work copy but not the folder.
     * Copy other files that exist in both from the folder to the work copy.
-    
+
     This class is not thread safe and can only perform one `punch()` at a time.
     """
     # TODO: Move to class ``MoveModes``.
@@ -1243,6 +1249,7 @@ class ScmPuncher(object):
         self._textOptions=None
         self._moveMode=ScmPuncher.MoveName
         self._nameTransformation=IdentityNameTransformation
+        self._lastRemovedFolderEntry = None
 
     def _getMoveMode(self):
         return self._moveMode
@@ -1274,13 +1281,19 @@ class ScmPuncher(object):
         'Transformation to change names of files and folders when transferring them from the external folder to the work copy.'
     )
 
-    def _isInLastRemovedFolder(self, itemToCheck):
+    def _setLastRemovedFolder(self, lastRemovedEntry):
+        assert lastRemovedEntry is not None
+        if lastRemovedEntry.kind == antglob.FileSystemEntry.Folder:
+            self._lastRemovedFolderEntry = lastRemovedEntry
+        else:
+            self._lastRemovedFolderEntry = None
+
+    def _isInLastRemovedFolder(self, entryToCheck):
         result = False
-        if self._entriesToRemove:
-            lastRemovedItem = self._entriesToRemove[-1]
-            if lastRemovedItem.kind == antglob.FileSystemEntry.Folder:
-                if lastRemovedItem.parts == itemToCheck.parts[:len(lastRemovedItem.parts)]:
-                    result = True
+        if self._lastRemovedFolderEntry:
+            lastRemovedFolderParts = self._lastRemovedFolderEntry.parts
+            if lastRemovedFolderParts == entryToCheck.parts[:len(lastRemovedFolderParts)]:
+                result = True
         return result
 
     def _workPathFor(self, fileSystemEntry):
@@ -1293,14 +1306,14 @@ class ScmPuncher(object):
         originalExternalEntry = self._renamedToOriginalExternalEntriesMap[renamedExternalEntry]
         return originalExternalEntry.absolutePath(self._externalFolderPath)
 
-    def _assertScheduledItemIsUnique(self, entryToSchedule, operation):
+    def _assertScheduledEntryIsUnique(self, entryToSchedule, operation):
         """
         Assert that a folder item ``entryToSchedule` scheduled for ``operation`` has not been
         scheduled for any other operation so far.
         """
         assert entryToSchedule is not None
         assert operation in ('add', 'copy', 'move', 'remove', 'transfer')
-        # TODO: Change self._*Items from list to set for faster lookup.
+        # TODO: Change self._entries* from list to set for faster lookup.
         assert (self._entriesToAdd is None) or (entryToSchedule not in self._entriesToAdd, "entry scheduled to %s has already been added: %s" % (operation, entryToSchedule))
         assert (self._entriesToCopy is None) or (entryToSchedule not in self._entriesToCopy, "entry scheduled to %s has already been copied: %s" % (operation, entryToSchedule))
         assert (self._entriesToTransfer is None) or (entryToSchedule not in self._entriesToTransfer, "entry scheduled to %s has already been transferred: %s" % (operation, entryToSchedule))
@@ -1310,30 +1323,31 @@ class ScmPuncher(object):
     def _add(self, entries):
         for entryToAdd in entries:
             if not self._isInLastRemovedFolder(entryToAdd):
-                _log.debug('schedule entry for add: "%s"', entryToAdd._relativePath)
-                self._assertScheduledItemIsUnique(entryToAdd, 'add')
-                self._entriesToAdd.append(entryToAdd)
+                _log.debug(u'schedule entry for add: "%s"', entryToAdd._relativePath)
+                self._assertScheduledEntryIsUnique(entryToAdd, 'add')
+                self._entriesToAdd.add(entryToAdd)
             else:
-                _log.debug('skip added entry in removed folder: "%s"', entryToAdd._relativePath)
+                _log.debug(u'skip added entry in removed folder: "%s"', entryToAdd._relativePath)
 
     def _remove(self, entries):
         for entryToRemove in entries:
             if not self._isInLastRemovedFolder(entryToRemove):
-                _log.debug('schedule entry for remove: "%s"', entryToRemove._relativePath)
-                self._assertScheduledItemIsUnique(entryToRemove, 'remove')
-                self._entriesToRemove.append(entryToRemove)
+                _log.debug(u'schedule entry for remove: "%s"', entryToRemove._relativePath)
+                self._setLastRemovedFolder(entryToRemove)
+                self._assertScheduledEntryIsUnique(entryToRemove, 'remove')
+                self._entriesToRemove.add(entryToRemove)
             else:
-                _log.debug('skip removed entry in removed folder: "%s"', entryToRemove._relativePath)
+                _log.debug(u'skip removed entry in removed folder: "%s"', entryToRemove._relativePath)
 
     def _transfer(self, entries):
         for entryToTransfer in entries:
             if not self._isInLastRemovedFolder(entryToTransfer):
                 # TODO: Add option to consider entries modified by only checking their date.
-                _log.debug('schedule entry for transfer: "%s"', entryToTransfer._relativePath)
-                self._assertScheduledItemIsUnique(entryToTransfer, 'transfer')
-                self._entriesToTransfer.append(entryToTransfer)
+                _log.debug(u'schedule entry for transfer: "%s"', entryToTransfer._relativePath)
+                self._assertScheduledEntryIsUnique(entryToTransfer, 'transfer')
+                self._entriesToTransfer.add(entryToTransfer)
             else:
-                _log.debug('skip transferable entry in removed folder: "%s"', entryToTransfer._relativePath)
+                _log.debug(u'skip transferable entry in removed folder: "%s"', entryToTransfer._relativePath)
 
     def _copyBinaryFile(self, sourceFilePath, targetFilePath):
         assert sourceFilePath is not None
@@ -1376,14 +1390,14 @@ class ScmPuncher(object):
         self.externalEntries = filesToPunchPatternSet.findEntries(externalFolderPath)
         self.externalEntries = _sortedFileSystemEntries(self.externalEntries)
         externalEntryCount = len(self.externalEntries)
-        _log.info('found %s in "%s"', _tools.oneOrOtherText(externalEntryCount, 'external entry', 'external entries'), self._externalFolderPath)
+        _log.info(u'found %s in "%s"', _tools.oneOrOtherText(externalEntryCount, 'external entry', 'external entries'), self._externalFolderPath)
 
         # Check that external items do not contain any work only items.
         if workOnlyPatternText:
             workFilesToPreservePatternSet = antglob.AntPatternSet(False)
             workFilesToPreservePatternSet.include(workOnlyPatternText)
         for item in self.externalEntries:
-            _log.debug('  %s', item)
+            _log.debug(u'  %s', item)
             if workOnlyPatternText and workFilesToPreservePatternSet.matchesParts(item.parts):
                 raise ScmError('entry in folder to punch must exist only in work copy: "%s"' % item._relativePath)
 
@@ -1393,12 +1407,12 @@ class ScmPuncher(object):
         self.workEntries = self.scmWork.findEntries(relativeWorkFolderPath, filesToPunchPatternSet)
         self.workEntries = _sortedFileSystemEntries(self.workEntries)
         workEntryCount = len(self.workEntries)
-        _log.info('found %s in "%s"', _tools.oneOrOtherText(workEntryCount, 'work entry', 'work entries'), self.scmWork.absolutePath("work path", relativeWorkFolderPath))
-        
+        _log.info(u'found %s in "%s"', _tools.oneOrOtherText(workEntryCount, 'work entry', 'work entries'), self.scmWork.absolutePath("work path", relativeWorkFolderPath))
+
         # Find existing work entries that do not comply to name transformation.
         workEntriesNotComplyingWithNameTransformationMap = {}
         for workEntry in self.workEntries:
-            _log.debug('  %s', workEntry)
+            _log.debug(u'  %s', workEntry)
             if self.nameTransformation:
                 transformedWorkEntry = self._createTransformedFileSystemEntry(workEntry)
                 if workEntry.relativePath != transformedWorkEntry.relativePath:
@@ -1422,7 +1436,7 @@ class ScmPuncher(object):
         assert self._externalFolderPath is not None
         assert self.workEntries is not None
         assert self.externalEntries is not None
-        
+
         self._renamedExternalEntries = []
         self._renamedToOriginalExternalEntriesMap = {}
         for externalEntry in self.externalEntries:
@@ -1437,15 +1451,15 @@ class ScmPuncher(object):
         assert len(self.externalEntries) == len(self._renamedToOriginalExternalEntriesMap)
 
         matcher = difflib.SequenceMatcher(None, self.workEntries, self._renamedExternalEntries)
-        _log.debug("matcher: %s", matcher.get_opcodes())
-        _log.debug('  work=%s', self.workEntries)
-        _log.debug('  rnex=%s', self._renamedExternalEntries)
-        self._entriesToAdd = []
-        self._entriesToTransfer = []
-        self._entriesToRemove = []
+        _log.debug(u'matcher: %s', matcher.get_opcodes())
+        _log.debug(u'  work=%s', self.workEntries)
+        _log.debug(u'  rnex=%s', self._renamedExternalEntries)
+        self._entriesToAdd = set()
+        self._entriesToTransfer = set()
+        self._entriesToRemove = set()
 
         for operation, i1, i2, j1, j2 in matcher.get_opcodes():
-            _log.debug("%s: %d, %d; %d, %d", operation, i1, i2, j1, j2)
+            _log.debug(u'%s: %d, %d; %d, %d', operation, i1, i2, j1, j2)
             if operation == 'insert':
                 self._add(self._renamedExternalEntries[j1:j2])
             elif operation == 'equal':
@@ -1454,9 +1468,9 @@ class ScmPuncher(object):
                 self._remove(self.workEntries[i1:i2])
             elif operation == 'replace':
                 renamedExternalEntriesToReplace = self._renamedExternalEntries[j1:j2]
-                _log.debug("  external to replace: %s", renamedExternalEntriesToReplace)
+                _log.debug(u'  external to replace: %s', renamedExternalEntriesToReplace)
                 workEntriesToReplace = self.workEntries[i1:i2]
-                _log.debug("  work to replace: %s", workEntriesToReplace)
+                _log.debug(u'  work to replace: %s', workEntriesToReplace)
                 allEntries = set(self.workEntries[i1:i2]) | set(self._renamedExternalEntries[j1:j2])
                 for replacedEntry in allEntries:
                     replacedWorkEntries = set(self.workEntries[i1:i2])
@@ -1503,7 +1517,7 @@ class ScmPuncher(object):
                 if possiblyMovedEntryKind == antglob.FileSystemEntry.File:
                         removedSourceEntry = correspondingRemovedEntries[0]
                         addedTargetEntry = possiblyMovedEntries[0]
-                        _log.debug('schedule for move: "%s" to "%s"', removedSourceEntry._relativePath, addedTargetEntry._relativePath)
+                        _log.debug(u'schedule for move: "%s" to "%s"', removedSourceEntry._relativePath, addedTargetEntry._relativePath)
                         self._entriesToRemove.remove(removedSourceEntry)
                         self._entriesToAdd.remove(addedTargetEntry)
                         self._entriesToMove.append((removedSourceEntry, addedTargetEntry))
@@ -1533,24 +1547,24 @@ class ScmPuncher(object):
                 countText += _tools.oneOrOtherText(folderCount, u'folder', u'folders')
             assert fileCount + folderCount > 0
             _log.info(u'%s %s', operation, countText)
-            
-        _log.info("punch modifications into work copy")
+
+        _log.info(u'punch modifications into work copy')
         if self._entriesToTransfer:
-            _logfilesAndFoldersMessage('transfer', self._entriesToTransfer)
-            for entryToTransfer in self._entriesToTransfer:
+            _logfilesAndFoldersMessage(u'transfer', self._entriesToTransfer)
+            for entryToTransfer in sorted(self._entriesToTransfer):
                 if entryToTransfer.kind == antglob.FileSystemEntry.Folder:
-                    _log.info('  create "%s"', entryToTransfer._relativePath)
+                    _log.info(u'  create "%s"', entryToTransfer._relativePath)
                     _tools.makeFolder(self._workPathFor(entryToTransfer))
                 else:
-                    _log.info('  transfer "%s"', entryToTransfer._relativePath)
+                    _log.info(u'  transfer "%s"', entryToTransfer._relativePath)
                     self._transferEntryFromExternalToWork(entryToTransfer, textOptions)
         if self._entriesToAdd:
-            _logfilesAndFoldersMessage('add', self._entriesToAdd)
+            _logfilesAndFoldersMessage(u'add', self._entriesToAdd)
             relativePathsToAdd = []
             # Create added folders and copy added files.
-            for entryToAdd in self._entriesToAdd:
+            for entryToAdd in sorted(self._entriesToAdd):
                 relativePathToAdd = entryToAdd._relativePath
-                _log.info('  add "%s"', relativePathToAdd)
+                _log.info(u'  add "%s"', relativePathToAdd)
                 relativePathsToAdd.append(relativePathToAdd)
                 if entryToAdd.kind == antglob.FileSystemEntry.Folder:
                     _tools.makeFolder(self._workPathFor(entryToAdd))
@@ -1559,19 +1573,19 @@ class ScmPuncher(object):
             # Add folders and files to SCM using a single command call.
             self.scmWork.add(relativePathsToAdd, recursive=False)
         if self._entriesToMove:
-            _logfilesAndFoldersMessage('move', [entryToMove for entryToMove, _ in self._entriesToMove])
+            _logfilesAndFoldersMessage(u'move', [entryToMove for entryToMove, _ in self._entriesToMove])
             for sourceEntryToMove, targetEntryToMove in self._entriesToMove:
                 sourcePath = sourceEntryToMove._relativePath
                 targetPath = os.path.dirname(targetEntryToMove._relativePath)
-                _log.info('  move "%s" from "%s" to "%s"', os.path.basename(sourcePath), os.path.dirname(sourcePath), targetPath)
+                _log.info(u'  move "%s" from "%s" to "%s"', os.path.basename(sourcePath), os.path.dirname(sourcePath), targetPath)
                 self.scmWork.move(sourcePath, targetPath, force=True)
                 self._transferEntryFromExternalToWork(targetEntryToMove, textOptions)
         if self._entriesToRemove:
-            _logfilesAndFoldersMessage('remove', self._entriesToRemove)
+            _logfilesAndFoldersMessage(u'remove', self._entriesToRemove)
             relativePathsToRemove = []
-            for entryToRemove in self._entriesToRemove:
+            for entryToRemove in sorted(self._entriesToRemove):
                 relativePathToRemove = entryToRemove._relativePath
-                _log.info('  remove "%s"', relativePathToRemove)
+                _log.info(u'  remove "%s"', relativePathToRemove)
                 relativePathsToRemove.append(relativePathToRemove)
             # Remove folder and files  using a single command call.
             self.scmWork.remove(relativePathsToRemove, recursive=True, force=True)
@@ -1637,7 +1651,7 @@ class ScmWork(object):
         """
         Check out a work copy to ``localTargetPath``.
         """
-        _log.info("check out work copy at \"%s\"", self.localTargetPath)
+        _log.info(u'check out work copy at "%s"', self.localTargetPath)
         if purge and os.path.exists(self.localTargetPath):
             self.purge()
         scmCommand = ["svn", "checkout", self.baseWorkQualifier, self.localTargetPath]
@@ -1647,7 +1661,7 @@ class ScmWork(object):
         """
         Remove work copy folder and all its contents. If the folder does not exist, do nothing.
         """
-        _log.info("purge work copy at \"%s\"", self.localTargetPath)
+        _log.info(u'purge work copy at "%s"', self.localTargetPath)
         _tools.removeFolder(self.localTargetPath)
 
     def reset(self):
@@ -1655,31 +1669,31 @@ class ScmWork(object):
         Reset the work copy to its baseline. This cleans up any locks, reverts
         changes and removes any files not under version control.
         """
-        _log.info("reset work copy at \"%s\"", self.localTargetPath)
-        _log.debug("  clean up pending locks")
+        _log.info(u'reset work copy at "%s"', self.localTargetPath)
+        _log.debug(u'  clean up pending locks')
         scmCommand = ["svn", "cleanup", "--non-interactive", self.localTargetPath]
         run(scmCommand)
-        _log.debug("  revert uncommited changes")
+        _log.debug(u'  revert uncommited changes')
         scmCommand = ["svn", "revert", "--recursive", "--non-interactive", self.localTargetPath]
         run(scmCommand)
-        _log.debug("  remove unversioned files and folders")
+        _log.debug(u'  remove unversioned files and folders')
         folderPathsToRemove = []
         for statusItem in self.status(""):
             pathToRemove = statusItem.path
             if statusItem.isResetable():
                 if os.path.isfile(pathToRemove):
-                    _log.debug("    remove file \"%s\"", pathToRemove)
+                    _log.debug(u'    remove file "%s"', pathToRemove)
                     os.remove(pathToRemove)
                 elif os.path.isdir(pathToRemove):
                     folderPathsToRemove.append(pathToRemove)
                 else:
                     raise ScmError(u"path to reset must be either a file or directory: \"%s\"" % pathToRemove)
         for folderPathToRemove in folderPathsToRemove:
-            _log.debug("    remove folder \"%s\"", folderPathToRemove)
+            _log.debug(u'    remove folder "%s"', folderPathToRemove)
             shutil.rmtree(folderPathToRemove)
 
     def update(self, relativePathToUpdate=""):
-        _log.info("update out work copy at \"%s\"", self.localTargetPath)
+        _log.info(u'update out work copy at "%s"', self.localTargetPath)
         pathToUpdate = os.path.join(self.localTargetPath, relativePathToUpdate)
         scmCommand = ["svn", "update", "--non-interactive", pathToUpdate]
         run(scmCommand, cwd=self.localTargetPath)
@@ -1705,7 +1719,7 @@ class ScmWork(object):
         return result
 
     def add(self, relativePathsToAdd, recursive=True):
-        _log.debug(u"add: %r", relativePathsToAdd)
+        _log.debug(u'add: %r', relativePathsToAdd)
         assert relativePathsToAdd is not None
         svnAddCommand = ["svn", "add", "--non-interactive"]
         if not recursive:
@@ -1723,18 +1737,18 @@ class ScmWork(object):
             if statusInfo.status == ScmStatus.Unversioned:
                 pathsToAdd.append(statusInfo.path)
             else:
-                _log.debug("add unversioned: ignore: %r; %r", statusInfo.status, statusInfo.path)
+                _log.debug(u'add unversioned: ignore: %r; %r', statusInfo.status, statusInfo.path)
         if pathsToAdd:
             self.add(pathsToAdd, True)
 
     def mkdir(self, relativeFolderPathToCreate):
-        _log.debug("mkdir: %s", relativeFolderPathToCreate)
+        _log.debug(u'mkdir: "%s"', relativeFolderPathToCreate)
         absoluteFolderPathToCreate = self.absolutePath("folder to create", relativeFolderPathToCreate)
         svnMkdirCommand = ["svn", "mkdir", "--non-interactive", absoluteFolderPathToCreate]
         run(svnMkdirCommand, cwd=self.localTargetPath)
 
     def move(self, relativeSourcePaths, relativeTargetPath, force=False):
-        _log.debug('move: %s to "%s"', str(relativeSourcePaths), relativeTargetPath)
+        _log.debug(u'move: %s to "%s"', str(relativeSourcePaths), relativeTargetPath)
         assert relativeSourcePaths is not None
         assert relativeTargetPath is not None
         svnAddCommand = ["svn", "move", "--non-interactive"]
@@ -1748,7 +1762,7 @@ class ScmWork(object):
         run(svnAddCommand, cwd=self.localTargetPath)
 
     def remove(self, relativePathsToRemove, recursive=True, force=False):
-        _log.debug("remove: %s", str(relativePathsToRemove))
+        _log.debug(u'remove: %s', str(relativePathsToRemove))
         assert relativePathsToRemove is not None
         svnRemoveCommand = ["svn", "remove", "--non-interactive"]
         if force:
@@ -1764,7 +1778,7 @@ class ScmWork(object):
     def commit(self, relativePathsToCommit, message, recursive=True):
         assert relativePathsToCommit is not None
         assert message is not None
-        _log.debug("commit: %s", str(relativePathsToCommit))
+        _log.debug(u'commit: %s', str(relativePathsToCommit))
         svnCommitCommand = ["svn", "commit", "--non-interactive"]
         if not recursive:
             svnCommitCommand.append("--non-recursive")
@@ -1825,9 +1839,10 @@ class ScmWork(object):
         if not recursive:
             svnStatusCommand.append("--non-recursive")
         svnStatusCommand.extend(absolutePathsToExamine)
-        statusXml = ""
+        statusXml = u''
         for statusLine in run(svnStatusCommand, returnStdout=True, cwd=self.localTargetPath):
             statusXml += statusLine + os.linesep
+        statusXml = statusXml.encode('utf-8')
         statusHandler = _SvnStatusContentHandler()
         xml.sax.parseString(statusXml, statusHandler)
         for statusItem in statusHandler.statusItems:
@@ -1842,7 +1857,7 @@ class ScmWork(object):
         folderPathToExport = self.absolutePath("export path", relativePathToExport)
         if clear:
             _tools.removeFolder(targetFolderPath)
-        _log.info("export \"%s\" to \"%s\"", folderPathToExport, targetFolderPath)
+        _log.info(u'export "%s" to "%s"', folderPathToExport, targetFolderPath)
         shutil.copytree(folderPathToExport, targetFolderPath, ignore=shutil.ignore_patterns(".svn", "_svn"))
 
 def createScmWork(workFolderPath):
@@ -1853,14 +1868,14 @@ def createScmWork(workFolderPath):
     scmStorageQualifier = None
     for svnName in [".svn", "_svn"]:
         svnFolderToCheckFor = os.path.join(workFolderPath, svnName)
-        _log.debug("check for %s", svnFolderToCheckFor)
+        _log.debug(u'check for %s', svnFolderToCheckFor)
         if os.path.exists(svnFolderToCheckFor):
             svnInfoLines = run(["svn", "info", workFolderPath], returnStdout=True)
             for infoLine in svnInfoLines:
-                _log.debug("  analyze: %s", infoLine)
+                _log.debug(u'  analyze: %s', infoLine)
                 if infoLine.startswith(SvnUrlKey):
                     scmStorageQualifier = infoLine[len(SvnUrlKey):]
-                    _log.info("found svn work copy stored at %s", scmStorageQualifier)
+                    _log.info(u'found svn work copy stored at %s', scmStorageQualifier)
     if scmStorageQualifier is None:
         raise ScmError("folder must be a work copy: \"%s\"" % workFolderPath)
     scmStorage = ScmStorage(scmStorageQualifier)
@@ -1871,20 +1886,20 @@ def scunch(sourceFolderPath, scmWork, textOptions=None, moveMode=ScmPuncher.Move
     """
     Punch files from unversioned folder ``sourceFolderPath`` into a `ScmWork` work copy
     ``scmWork``.
-    
+
     To post process text files, specify `TextOptions` in ``textOptions``.
-    
+
     To move or add and remove files, specify the desired ``moveMode``.
-    
+
     To transform source names when transferring them to the work copy, specify a transformation
     function in ``nameTransformation``. For an example of such a function, see
     `LowerNameTransformation`.
-    
+
     To include and exclude only certain files, specify a ant-like pattnern text in
     ``includePatternText`` and ``excludePatternText``. See `antglob` for details on how to specify
     such patterns. For example, ``includePatternText='**/*.py, **/*.rst'`` would consider all files
     with a suffix of '*.py' or '*.rst'.
-    
+
     To preserve files in the work copy even when their are no such files in ``sourceFolderPath``,
     specify them usin a ant-like pattern in ``workOnlyPattern``.
 
@@ -2017,7 +2032,7 @@ def parsedOptions(arguments):
             previousDestructiveAction = action
         else:
             previousAction = action
-            
+
     # Validate actions for option ``--after``.
     actionsToPerformAfterPunching = _parsedActions(parser, '--after', options.actionsToPerformAfterPunching, _ValidAfterActions)
     foundPurgeAction = False
@@ -2027,14 +2042,14 @@ def parsedOptions(arguments):
             foundPurgeAction = True
         elif foundPurgeAction:
             parser.error("action %r in option --after must appear before action %r but is: %s" % (action, _Actions.Purge, options.actionsToPerformAfterPunching))
-            
+
     return (options, sourceFolderPath, workFolderPath, actionsToPerformBeforePunching, actionsToPerformAfterPunching)
 
 def main(arguments=None):
     """
     Main function for command line call returning a tuple
     ``(exitCode, error)``. In cause everything worked out, the result is
-    ``(0, None)``. 
+    ``(0, None)``.
     """
     if arguments == None:
         actualArguments = sys.argv
@@ -2060,7 +2075,7 @@ def main(arguments=None):
             scmWork = createScmWork(workFolderPath)
         textOptions = _createTextOptions(options)
         nameTransformation = _NameToTransformationMap[options.nameTransformation]
-        
+
         # Perform actions before punching.
         for action in actionsToPerformBeforePunching:
             assert action in _ValidBeforeActions
@@ -2087,10 +2102,10 @@ def main(arguments=None):
                 scmWork.purge()
             else:
                 assert action == _Actions.None_
-                
+
         exitCode = 0
     except ScmPendingChangesError, error:
-        _log.error("%s To resolve this, use '--before=reset' to discard the changes or '--before=none' to ignore them." % error)
+        _log.error(u'%s To resolve this, use \'--before=reset\' to discard the changes or \'--before=none\' to ignore them.', error)
         exitError = error
     except ScmNameTransformationError, error:
         _log.error(u'%s', error)
