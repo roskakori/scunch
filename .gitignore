@@ -1,6 +1,12 @@
 *.pyc
 *.pyo
 test
+/.coverage
 /MANIFEST
+/coverage.xml
+/build
 /dist
+/nosetests.xml
+/pep8.txt
 /scunch.egg-info
+/sloccount.sc
