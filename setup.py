@@ -44,18 +44,18 @@ setup(
     install_requires=[
         "nose>=1.0"
     ],
-    entry_points = {
+    entry_points={
         'console_scripts': [
             'scunch = scunch.scunch:main'
         ],
     },
-    test_suite = "nose.collector",
+    test_suite="nose.collector",
     keywords="svn scm version import apply copy transfer punch working work",
     author="Thomas Aglassinger",
     author_email="roskakori@users.sourceforge.net",
     url="http://pypi.python.org/pypi/scunch/",
     license="GNU Library or Lesser General Public License (LGPL)",
-    long_description=scunch.__doc__, #@UndefinedVariable
+    long_description=scunch.__doc__,  # @UndefinedVariable
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Environment :: Console",
