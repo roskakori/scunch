@@ -1,7 +1,7 @@
 """
-Tests for scunch.
+Tests for `_tools`.
 """
-# Copyright (C) 2011 Thomas Aglassinger
+# Copyright (C) 2011 - 2012 Thomas Aglassinger
 #
 # This program is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published by
@@ -24,6 +24,7 @@ import _tools
 
 _log = logging.getLogger("test")
 
+
 class FolderTest(unittest.TestCase):
     def testCanMessWithFolders(self):
         testFolderPath = tempfile.mkdtemp(prefix="scunch_test_")
@@ -41,6 +42,7 @@ class FolderTest(unittest.TestCase):
         # Clean up.
         _tools.removeFolder(testFolderPath)
 
+
 class HumanReadableListTest(unittest.TestCase):
     def testRendersEmptyListAsEmptyText(self):
         self.assertEqual(u'', _tools.humanReadableList([]))
@@ -54,16 +56,17 @@ class HumanReadableListTest(unittest.TestCase):
     def testRendersMutipleItemsWithCommaAndOr(self):
         self.assertEqual(u"'red', 'green' or 'blue'", _tools.humanReadableList(['red', 'green', 'blue']))
 
+
 class OneOrOtherTextTest(unittest.TestCase):
     def testShows0AsPlural(self):
         self.assertEqual(u'0 items', _tools.oneOrOtherText(0, 'item', 'items'))
 
-    def testShows1AsSingular(self):    
+    def testShows1AsSingular(self):
         self.assertEqual(u'1 item', _tools.oneOrOtherText(1, 'item', 'items'))
 
     def testShows2AsPlural(self):
         self.assertEqual(u'2 items', _tools.oneOrOtherText(2, 'item', 'items'))
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     logging.basicConfig(level=logging.INFO)
     unittest.main()

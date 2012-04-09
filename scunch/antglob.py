@@ -47,7 +47,7 @@ As test files are of no interest, we can exclude them from the result::
 Additionally to `AntPatternSet.find()` there is `AntPatternSet..ifind()` which
 yields the result bit by bit instead of returning a whole array.
 
-In case you want to know more than just the name, there is 
+In case you want to know more than just the name, there is
 `AntPatternSet.findEntries()` and `AntPatternSet.ifindEntries()` which use
 objects of type `FileSystemEntry` instead of strings containing just the path
 of the file found.
@@ -63,7 +63,7 @@ A `FileSystemEntry` has the following properties:
 * ``timeModified``, the timestamp when the file or folder was last
   modified. See ``os.stat``, field ``st_mtime`` on how to process it.
 """
-# Copyright (C) 2011 Thomas Aglassinger
+# Copyright (C) 2011 - 2012 Thomas Aglassinger
 #
 # This program is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published by
@@ -121,6 +121,7 @@ DefaultExcludes = (
      u'**/.bzrignore'
 )
 
+
 def createAntPatterns(patternListText):
     """
     List of `AntPattern`s extracted from ``patternListText``, which should contain
@@ -136,12 +137,14 @@ def createAntPatterns(patternListText):
         result.append(AntPattern(patternTextItem))
     return result
 
+
 def resolvedPathParts(parts=[]):
     assert parts is not None
     result = u''
     for element in parts:
         result = os.path.join(result, element)
     return result
+
 
 def isFolderPath(pathToCheck):
     """
@@ -150,9 +153,11 @@ def isFolderPath(pathToCheck):
     assert pathToCheck is not None
     return pathToCheck.endswith(os.sep)
 
+
 def _asFolderPath(path):
     assert path is not None
     return path + os.sep
+
 
 def _parentOfFolderPath(folderPath):
     """
@@ -162,17 +167,20 @@ def _parentOfFolderPath(folderPath):
     assert isFolderPath(folderPath)
     return os.path.dirname(folderPath[:-1])
 
+
 class AntError(Exception):
     """
     Error raised when ant options cannot be processed.
     """
     pass
 
+
 class AntPatternError(AntError):
     """
     Error raised if an ant-like pattern is broken or cannot be processed.
     """
     pass
+
 
 class FileSystemEntry(object):
     """
@@ -189,7 +197,7 @@ class FileSystemEntry(object):
         self.setParts(parts)
         try:
             entryInfo = os.stat(self.path)
-        except OSError, error: # pragma: no cover
+        except OSError, error:  # pragma: no cover
             if error.errno == errno.ENOENT:
                 raise AntPatternError(u'file system entry must remain during processing but was removed in the background: %r' % self.path)
             else:
@@ -226,7 +234,7 @@ class FileSystemEntry(object):
         self._relativePath = resolvedPathParts(self.parts)
         self._path = self.absolutePath(self._baseFolderPath)
 
-    parts = property(_getParts, setParts,  doc='The folder and name parts the entry\'s path is composed of')
+    parts = property(_getParts, setParts, doc='The folder and name parts the entry\'s path is composed of')
 
     def _getPath(self):
         return self._path
@@ -256,12 +264,13 @@ class FileSystemEntry(object):
 
     def __unicode__(self):
         return u'<FileSystemEntry: kind=%s, parts=%s>' % (self.kind, self.parts)
-        
+
     def __str__(self):
         return unicode(self).encode('utf-8')
-    
+
     def __repr__(self):
         return self.__str__()
+
 
 class AntPatternItem(object):
     """
@@ -270,7 +279,7 @@ class AntPatternItem(object):
     All = 'all'
     Many = 'many'
     One = 'one'
-    
+
     def __init__(self, text):
         assert text is not None
         self.pattern = text
@@ -285,28 +294,30 @@ class AntPatternItem(object):
         if self.kind == AntPatternItem.All:
             result = True
         else:
-            assert self.kind in (AntPatternItem.Many, AntPatternItem.One) 
+            assert self.kind in (AntPatternItem.Many, AntPatternItem.One)
             result = fnmatch.fnmatch(text, self.pattern)
         return result
 
     def __cmp__(self, other):
         if isinstance(other, AntPatternItem):
             result = cmp(self.pattern, other.pattern)
-        else:                                     
+        else:
             result = cmp(self.pattern, other)
-        return result    
+        return result
 
     def __unicode__(self):
         return u'<AntPatternItem: kind=%s, pattern=%r>' % (self.kind, self.pattern)
-        
+
     def __str__(self):
         return unicode(self).encode('utf-8')
-    
+
     def __repr__(self):
         return self.__str__()
 
+
 def _findItemInList(needle, haystack):
     return _findListInList([needle], haystack)
+
 
 def _findListInList(needle, haystack):
     result = None
@@ -321,13 +332,14 @@ def _findListInList(needle, haystack):
             else:
                 indexToCheck += 1
     else:
-        result = 0 
+        result = 0
     return result
+
 
 def _indexInTextItemsWherePatternPartsMatch(textParts, patternParts):
     """
     First index in ``textParts`` where a part of ``textParts`` with the same number of parts as
-    ``patternParts`` matches ``patternParts``. 
+    ``patternParts`` matches ``patternParts``.
     """
     assert textParts is not None
     assert patternParts is not None
@@ -347,6 +359,7 @@ def _indexInTextItemsWherePatternPartsMatch(textParts, patternParts):
         else:
             indexToCheck += 1
     return result
+
 
 def _findTextItemsInPatternItems(textItems, patternItems):
     """
@@ -372,6 +385,7 @@ def _findTextItemsInPatternItems(textItems, patternItems):
         result = 0
     return result
 
+
 def _textItemsAreInPatternItems(textItems, patternItems):
     """
     ``True`` if a match for ``textItems`` can be found somewhere in ``patternItems``.
@@ -383,6 +397,7 @@ def _textItemsAreInPatternItems(textItems, patternItems):
 
     return (_findTextItemsInPatternItems(textItems, patternItems) is not None)
 
+
 def _textItemsAreAtEndOfPatternItems(textItems, patternItems):
     assert textItems is not None
     assert patternItems is not None
@@ -392,6 +407,7 @@ def _textItemsAreAtEndOfPatternItems(textItems, patternItems):
     patternItemsTail = patternItems[-len(textItems):]
     result = _textItemsMatchPatternItems(textItems, patternItemsTail)
     return result
+
 
 def _textItemsMatchPatternItems(textItems, patternItems):
     assert textItems is not None
@@ -463,10 +479,11 @@ def _textItemsMatchPatternItems(textItems, patternItems):
         result = not hasTextItems
     return result
 
+
 def _splitTextParts(text, fixAllMagicAtEnd=False):
     """
     List of string containing ``text`` split using a system independent path separator.
-    
+
     Perform the following transformations on the text:
 
     * Unify "/" and "\\" to "/" to allow system independent path matching.
@@ -479,7 +496,7 @@ def _splitTextParts(text, fixAllMagicAtEnd=False):
         remainingText = text.replace('\\', pathSeperator)
     elif pathSeperator == '\\':
         remainingText = text.replace('/', pathSeperator)
-    else: # pragma: no cover
+    else:  # pragma: no cover
         raise NotImplementedError(u'cannot split unknown path separator: %r' % pathSeperator)
     if fixAllMagicAtEnd and remainingText.endswith(pathSeperator):
         remainingText += _AntAllMagic
@@ -487,6 +504,7 @@ def _splitTextParts(text, fixAllMagicAtEnd=False):
         remainingText, part = os.path.split(remainingText)
         result.insert(0, part)
     return result
+
 
 class AntPattern(object):
     """
@@ -500,7 +518,7 @@ class AntPattern(object):
         assert text is not None
         textItems = _splitTextParts(text)
         return self.matchesParts(textItems)
-    
+
     def matchesParts(self, textItems):
         assert textItems is not None
         return _textItemsMatchPatternItems(textItems, self.patternItems)
@@ -508,32 +526,33 @@ class AntPattern(object):
     def __unicode__(self):
         result = u'<AntPattern: %s>' % (self.patternItems)
         return result
-        
+
     def __str__(self):
         return unicode(self).encode('utf-8')
-    
+
     def __repr__(self):
         return self.__str__()
+
 
 class AntPatternSet(object):
     """
     A set of include and exclude patterns to decide whether a text should match.
-    
+
     If no include pattern is specified, everything matches.
-    
+
     As example, first create a pattern and specify which files to include and exclude. In this
     case, we want to include Python source code and documentation but exclude test files:
-    
+
     >>> pythonSet = AntPatternSet()
     >>> pythonSet.include('**/*.py, **/*.rst')
     >>> pythonSet.exclude('**/test_*')
-    
+
     We can use this pattern set to check whether certain file paths would be part of it:
     >>> pythonSet.matches("some/module.py")
     True
     >>> pythonSet.matches("logo.gif")
     False
-    
+
     The most useful method however is `AntPatternSet.find()`, which scans a folder for files and
     returns the files that match the pattern.
     """
@@ -548,11 +567,11 @@ class AntPatternSet(object):
         if useDefaultExcludes:
             for patternText in DefaultExcludes:
                 self.exclude(patternText)
-    
+
     def _addPatternDefinition(self, targetPatterns, patternDefinition):
         assert targetPatterns is not None
         assert patternDefinition is not None
-        if isinstance(patternDefinition, basestring) : 
+        if isinstance(patternDefinition, basestring):
             for pattern in createAntPatterns(patternDefinition):
                 targetPatterns.append(pattern)
         else:
@@ -582,7 +601,7 @@ class AntPatternSet(object):
         """
         textItems = _splitTextParts(text)
         return self.matchesParts(textItems)
-    
+
     def _matchesAnyPatternIn(self, textItems, patterns):
         """
         ``True`` if ``textItems`` match any of the patterns in ``patterns``.
@@ -599,7 +618,7 @@ class AntPatternSet(object):
             else:
                 patternIndex += 1
         return result
-        
+
     def matchesParts(self, partsToMatch):
         assert partsToMatch is not None
         if self.includePatterns:
@@ -712,14 +731,14 @@ class AntPatternSet(object):
 
     def __unicode__(self):
         return u'<AntPatternSet: include=%s, exclude=%s>' % (self.includePatterns, self.excludePatterns)
-        
+
     def __str__(self):
         return unicode(self).encode('utf-8')
-    
+
     def __repr__(self):
         return self.__str__()
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     logging.basicConfig(level=logging.WARNING)
     _log.info('running doctest')
     import doctest

@@ -47,8 +47,9 @@ class ToolsTest(unittest.TestCase):
         hello = u'h\xe4ll\xf6'
         helloWithUmlauts = scunch.run([u'echo', hello], returnStdout=True)
         normalizedHelloPy = [unicodedata.normalize(scunch._consoleNormalization, hello)]
-        self.assertEqual( helloWithUmlauts, normalizedHelloPy)
-        
+        self.assertEqual(helloWithUmlauts, normalizedHelloPy)
+
+
 class _ScmTest(unittest.TestCase):
     def setUp(self):
         scunch._setUpEncoding()
@@ -60,7 +61,7 @@ class _ScmTest(unittest.TestCase):
         """
         assert project
         assert testFolderPath
-        
+
         self.project = project
         self.testFolderPath = testFolderPath
         self.scmWork = None
@@ -96,20 +97,20 @@ class _ScmTest(unittest.TestCase):
         assert self.scmWork is not None, "scmWork must be set"
         assert expectedStatusToCountMap is not None
 
-        actualStatusToCountMap = {}        
+        actualStatusToCountMap = {}
         for statusInfo in self.scmWork.status(""):
             actualStatus = statusInfo.status
             if actualStatus != scunch.ScmStatus.Normal:
                 if not actualStatus in expectedStatusToCountMap:
-                    self.fail(u'status for "%s" is %r but must be one of: %s' % (statusInfo.path, actualStatus, expectedStatusToCountMap.keys())) # pragma: no cover
+                    self.fail(u'status for "%s" is %r but must be one of: %s' % (statusInfo.path, actualStatus, expectedStatusToCountMap.keys()))  # pragma: no cover
                 existingCount = actualStatusToCountMap.get(actualStatus)
                 if existingCount is None:
                     actualStatusToCountMap[actualStatus] = 1
                 else:
                     actualStatusToCountMap[actualStatus] = existingCount + 1
         self.assertEqual(actualStatusToCountMap, expectedStatusToCountMap)
-                
-        
+
+
 class _SvnTest(_ScmTest):
     def setUpEmptyProject(self, project, testFolderPath=_BaseTestFolder):
         """
@@ -159,6 +160,7 @@ class _SvnTest(_ScmTest):
         self.scmWork.addUnversioned("")
         self.scmWork.commit("", "Added test files")
 
+
 class BasicTest(_SvnTest):
     def testCanAddNoneAsciiFileName(self):
         self.setUpProject("basic")
@@ -202,16 +204,16 @@ class BasicTest(_SvnTest):
         nonWorkCopyFolderPath = os.path.join(_BaseTestFolder, 'testFailOnMissingWorkCopy')
         _tools.makeEmptyFolder(nonWorkCopyFolderPath)
         self.assertRaises(scunch.ScmError, scunch.createScmWork, nonWorkCopyFolderPath)
-        
+
     def testCanBePurged(self):
         self.setUpProject("testPurge")
         self.assertTrue(os.path.exists(self.scmWork.localTargetPath))
         self.scmWork.purge()
         self.assertFalse(os.path.exists(self.scmWork.localTargetPath))
-        
+
     def testCanBeReset(self):
         self.setUpProject("testReset")
-        
+
         # Modify a and add few files.
         addedFolderPath = self.scmWork.absolutePath("test folder to add", "addedFolder")
         addedPyPath = self.scmWork.absolutePath("test file to add", os.path.join("loops", "added.py"))
@@ -236,7 +238,8 @@ class BasicTest(_SvnTest):
         self.setUpEmptyProject("testDetectsBrokenAbsolutePath")
         self.assertRaises(scunch.ScmError, self.scmWork.absolutePath, 'broken test path', None)
         self.assertRaises(scunch.ScmError, self.scmWork.absolutePaths, 'broken test path', [])
-        
+
+
 class ScunchTest(_SvnTest):
     """
     TestCase for `scunch.scunch()`.
@@ -288,7 +291,7 @@ class ScunchTest(_SvnTest):
             arguments = ["scunch.test"]
             arguments.extend(cliOptions)
             scunch.main(arguments)
-            self.fail("expected SystemExit with code=%d" % expectedExitCode) # pragma: no cover
+            self.fail("expected SystemExit with code=%d" % expectedExitCode)  # pragma: no cover
         except SystemExit, error:
             if expectedExitCode:
                 self.assertEqual(error.code, expectedExitCode)
@@ -300,7 +303,7 @@ class ScunchTest(_SvnTest):
 
     def testCanShowVersionInformation(self):
         self._testMainWithSystemExit(["--version"])
-        
+
     def testFailsWithUnknownOption(self):
         self._testMainWithSystemExit(["--no-such-option"], 2)
 
@@ -349,12 +352,12 @@ class ScunchTest(_SvnTest):
 
         testScunchWithImplicitWorkPath = self.createTestFolder("testMainWithImplicitWork")
         scmWork.exportTo(testScunchWithImplicitWorkPath, clear=True)
-        
+
         implicitWorkPath = scmWork.absolutePath("implicit work folder", "")
         # Assertion to make sure that major screw ups will not destroy scunch's source code.
         queriedWorkName = os.path.basename(os.path.dirname(implicitWorkPath))
         self.assertTrue(queriedWorkName == "mainWithImplicitWork", "queriedWorkName=%r, implicitWorkPath=%r" % (queriedWorkName, implicitWorkPath))
-        
+
         self._testMain([testScunchWithImplicitWorkPath], implicitWorkPath)
 
     def testCanPreserveFilesMatchingWorkOnlyPattern(self):
@@ -363,11 +366,11 @@ class ScunchTest(_SvnTest):
 
         testScunchWithWorkOnlyPatternPath = self.createTestFolder("testMainWorkOnlyPattern")
         scmWork.exportTo(testScunchWithWorkOnlyPatternPath, clear=True)
-        
+
         workOnlyPath = scmWork.absolutePath("work only folder", "")
         makefilePath = os.path.join(workOnlyPath, "Makefile")
         self.writeTextFile(makefilePath, ["# Dummy Makefile that could call scunch and what not."])
-        
+
         self._testMain(["--before", "none", "--work-only", "Makefile", testScunchWithWorkOnlyPatternPath], workOnlyPath)
         self.assertTrue(os.path.exists(makefilePath))
 
@@ -381,7 +384,7 @@ class ScunchTest(_SvnTest):
 
         testScunchWithIncludeAndExcludePatternPath = self.createTestFolder("testMainIncludeAndExcludePattern")
         scmWork.exportTo(testScunchWithIncludeAndExcludePatternPath, clear=True)
-        
+
         workFolderPath = scmWork.absolutePath("work folder", "")
         helloPyWorkPath = scmWork.absolutePath("included Python source file", "hello.py")
         self.assertTrue(os.path.getsize(helloPyWorkPath))
@@ -392,10 +395,10 @@ class ScunchTest(_SvnTest):
         with open(helloPyWorkPath, "wb"):
             pass
         self.assertEqual(os.path.getsize(helloPyWorkPath), 0)
-        
+
         # Remove excluded file from work copy to make sure that it will not be transferred.
         os.remove(whilePyWorkPath)
-        
+
         self._testMain(["--before", "none", "--include", "**/*.py", "--exclude", "loops/while.py", testScunchWithIncludeAndExcludePatternPath], workFolderPath)
         self.assertTrue(os.path.getsize(helloPyWorkPath))
         self.assertFalse(os.path.exists(whilePyWorkPath))
@@ -406,7 +409,7 @@ class ScunchTest(_SvnTest):
 
         testScunchWithCommitPath = self.createTestFolder("testMainWithCommit")
         scmWork.exportTo(testScunchWithCommitPath, clear=True)
-        
+
         workFolderPath = scmWork.absolutePath("work folder", "")
         workReadmeTxtPath = self.scmWork.absolutePath("test file path", "ReadMe.txt")
         externalReadmeTxtPath = os.path.join(testScunchWithCommitPath, "ReadMe.txt")
@@ -422,7 +425,7 @@ class ScunchTest(_SvnTest):
 
         testScunchWithCheckAndPendingChangesPath = self.createTestFolder("testMainWithCheckAndPendingChanges")
         scmWork.exportTo(testScunchWithCheckAndPendingChangesPath, clear=True)
-        
+
         # Enforce a change by removing a file under version control.
         workFolderPath = scmWork.absolutePath("work folder", "")
         workReadmeTxtPath = self.scmWork.absolutePath("test file path", "ReadMe.txt")
@@ -464,7 +467,7 @@ class ScunchTest(_SvnTest):
         testScunchWithUpdatePath = self.createTestFolder("testMainWithUpdate")
         scmWork.exportTo(testScunchWithUpdatePath, clear=True)
 
-        # TODO: Improve test for "--before=update" by creating a second working copy and committing a change from it.        
+        # TODO: Improve test for "--before=update" by creating a second working copy and committing a change from it.
         self._testMain(["--before", "update", testScunchWithUpdatePath, scmWork.localTargetPath])
 
     def testMainWithResetCommit(self):
@@ -475,7 +478,7 @@ class ScunchTest(_SvnTest):
         scmWork.exportTo(testScunchWithResetPath, clear=True)
 
         # TODO: Improve test for "--before=reset" by messing up a few files to that reset does something useful.
-        # Note: We are doing an --after commit in order to ensure that the work copy is still consistent after the reset.        
+        # Note: We are doing an --after commit in order to ensure that the work copy is still consistent after the reset.
         self._testMain(["--before", "reset", "--after", "commit", testScunchWithResetPath, scmWork.localTargetPath])
 
     def testMainWithResetUpdateCommitPurge(self):
@@ -495,7 +498,7 @@ class ScunchTest(_SvnTest):
 
         testScunchWithCommitPath = self.createTestFolder("testFailsWithLowerNameTransformationAndExistingMixedName")
         scmWork.exportTo(testScunchWithCommitPath, clear=True)
-        
+
         workFolderPath = scmWork.absolutePath("work folder", "")
         workReadmeTxtPath = self.scmWork.absolutePath("test file path", "ReadMe.txt")
         self.assertTrue(os.path.exists(workReadmeTxtPath))
@@ -516,7 +519,7 @@ class ScmPuncherTest(_SvnTest):
         """
         assert self.scmWork is not None
         assert externalFolderPath is not None
-        
+
         self.scmWork.commit([""], "Punched recent changes.")
         rePuncher = scunch.ScmPuncher(self.scmWork)
         rePuncher.nameTransformation = names
@@ -573,7 +576,7 @@ class ScmPuncherTest(_SvnTest):
         writeAllTxtFiles('MiXeD')
         _tools.makeEmptyFolder(os.path.join(externalPunchWithLowerCopyPath, "UPPER"))
         writeAllTxtFiles('UPPER')
-        
+
         lowerNamesPuncher = scunch.ScmPuncher(self.scmWork)
         lowerNamesPuncher.nameTransformation = scunch.LowerNameTransformation
         lowerNamesPuncher.punch(externalPunchWithLowerCopyPath)
@@ -594,7 +597,7 @@ class ScmPuncherTest(_SvnTest):
         # Create test files and folders with names with different cases.
         writeEmptyTxtFile("some.txt")
         writeEmptyTxtFile("SoMe.TxT")
-        
+
         hasLowerSomeTxt = False
         hasMixedSomeTxt = False
         for name in os.listdir(externalPunchWithLowerNameClashPath):
@@ -714,7 +717,7 @@ class ScmPuncherTest(_SvnTest):
     def _assertWorkTextFileEquals(self, correspondingExternalTextFilePath, expectedContent):
         assert correspondingExternalTextFilePath is not None
         assert expectedContent is not None
-        
+
         correspondingExternalTextFileName = os.path.basename(correspondingExternalTextFilePath)
         relativeWorkFileToTestPath = os.path.join("texts", correspondingExternalTextFileName)
         workFileToTestPath = self.scmWork.absolutePath("work text file", relativeWorkFileToTestPath)
@@ -767,7 +770,7 @@ class ScmPuncherTest(_SvnTest):
             scunch.TextOptions("**/*.txt"),
             {
                 self.dosNewLineTxtPath: "1%s2%s" % (os.linesep, os.linesep),
-                self.unixNewLineTxtPath: "1%s2%s"  % (os.linesep, os.linesep),
+                self.unixNewLineTxtPath: "1%s2%s" % (os.linesep, os.linesep),
                 self.mixedNewLineTxtPath: "1%s2%s3%s4%s" % (os.linesep, os.linesep, os.linesep, os.linesep),
                 self.noNewLineTxtPath: "1%s" % os.linesep,
                 self.emptyTxtPath: "",
@@ -793,9 +796,9 @@ class ScmPuncherTest(_SvnTest):
         )
 
     def testPunchWithPattern(self):
-        IncludePatternText="**/*.py **/*.html"
+        IncludePatternText = "**/*.py **/*.html"
         ExcludePatternText = "**/*i*.py"
-        WorkOnlyPatternText="build.xml"
+        WorkOnlyPatternText = "build.xml"
 
         self.setUpProject("punchWithPattern")
         scmWork = self.scmWork
@@ -819,7 +822,7 @@ class ScmPuncherTest(_SvnTest):
 
         self.assertNonNormalStatus({scunch.ScmStatus.Unversioned: 1, scunch.ScmStatus.Missing: 1})
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     scunch._setUpLogging(logging.DEBUG)
     logging.getLogger("antglob").setLevel(logging.INFO)
     unittest.main()

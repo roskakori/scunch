@@ -766,6 +766,7 @@ _log = logging.getLogger("scunch")
 _consoleEncoding = None
 _consoleNormalization = None
 
+
 class _Actions(object):
     """
     Pseudo class to collect possible actions for ``--before`` and ``--after``.
@@ -796,12 +797,14 @@ _ValidBeforeActions = set([_Actions.Check, _Actions.Checkout, _Actions.None_, _A
 _ValidConsoleNormalizations = set(['auto', 'nfc', 'nfkc', 'nfd', 'nfkd'])
 _ValidNameTransformations = set(_NameToTransformationMap.keys())
 
+
 def _setUpLogging(level=logging.INFO):
     """
     Set up logging with ``level`` being the initial minimum logging level.
     """
     assert level is not None
     logging.basicConfig(level=level)
+
 
 def _setUpEncoding(consoleEncoding='auto', consoleNormalization='auto'):
     """
@@ -838,6 +841,7 @@ def _setUpEncoding(consoleEncoding='auto', consoleNormalization='auto'):
     sys.stdout = codecs.getwriter(_consoleEncoding)(sys.stdout)
     sys.stdin = codecs.getreader(_consoleEncoding)(sys.stdin)
 
+
 def _humanReadableCommand(commandAndOptions):
     result = ""
     isFirstItem = True
@@ -850,6 +854,7 @@ def _humanReadableCommand(commandAndOptions):
             result += " "
         result += commandItem
     return result
+
 
 def run(commandAndOptions, returnStdout=False, cwd=None):
     assert _consoleEncoding is not None
@@ -887,9 +892,9 @@ def run(commandAndOptions, returnStdout=False, cwd=None):
                         errorMessage = " Error: " + errorMessage
                     else:
                         errorMessage = "."
-                    raise ScmError(u"cannot perform shell command %r.%s Command:  %s" %(commandName, errorMessage, commandText))
+                    raise ScmError(u"cannot perform shell command %r.%s Command:  %s" % (commandName, errorMessage, commandText))
             except OSError, error:
-                raise ScmError(u"cannot perform shell command %r: %s. Command:  %s" %(commandName, error, commandText))
+                raise ScmError(u"cannot perform shell command %r: %s. Command:  %s" % (commandName, error, commandText))
             finally:
                 if returnStdout:
                     result = []
@@ -903,11 +908,13 @@ def run(commandAndOptions, returnStdout=False, cwd=None):
         os.remove(stderrPath)
     return result
 
+
 class ScmError(Exception):
     """
     Error related to performing an SCM operation.
     """
     pass
+
 
 class ScmPendingChangesError(ScmError):
     """
@@ -917,11 +924,13 @@ class ScmPendingChangesError(ScmError):
     """
     pass
 
+
 class ScmNameClashError(ScmError):
     """
     Error raised whan an SCM operation results in a name clash.
     """
     pass
+
 
 class ScmNameTransformationError(ScmError):
     """
@@ -945,6 +954,7 @@ class ScmNameTransformationError(ScmError):
         return self._existingToTransformedPathMap
 
     existingToTransformedPathMap = property(_getExistingToTransformedPathMap, doc='Mapping to existing current work entry path to transformed path.')
+
 
 class ScmStatus(object):
     Added = 'added'
@@ -1026,8 +1036,10 @@ class ScmStatus(object):
     def __str__(self):
         return unicode(self).encode('utf-8')
 
+
 class _SvnStatusContentHandler(ContentHandler):
     _ElementsToIgnore = set(('author', 'commit', 'date', 'status', 'target'))
+
     def __init__(self):
         self.statusItems = []
         self.currentEntry = None
@@ -1061,6 +1073,7 @@ class _SvnStatusContentHandler(ContentHandler):
         if name == "entry":
             self.statusItems.append(self.currentEntry)
             self.currentEntry = None
+
 
 class ScmStorage(object):
     """
@@ -1127,6 +1140,7 @@ class ScmStorage(object):
         scmCommand.extend(self.absoluteQualifiers(relativeQualifiersToCreate))
         run(scmCommand)
 
+
 def _sortedFileSystemEntries(entriesToSort):
     def comparedFileSystemEntries(some, other):
         assert some is not None
@@ -1144,6 +1158,7 @@ def _sortedFileSystemEntries(entriesToSort):
         result.update([entry])
     result = sorted(result, comparedFileSystemEntries)
     return result
+
 
 class TextOptions(object):
     """
@@ -1246,9 +1261,9 @@ class ScmPuncher(object):
         self._entriesToRemove = None
         self._filesToPunchPatternSet = None
         self._workFilesToPreservePatternSet = None
-        self._textOptions=None
-        self._moveMode=ScmPuncher.MoveName
-        self._nameTransformation=IdentityNameTransformation
+        self._textOptions = None
+        self._moveMode = ScmPuncher.MoveName
+        self._nameTransformation = IdentityNameTransformation
         self._lastRemovedFolderEntry = None
 
     def _getMoveMode(self):
@@ -1271,6 +1286,7 @@ class ScmPuncher(object):
     textOptions = property(_getTextOptions, _setTextOptions,
         '`TextOptions` describing how to process text files.'
     )
+
     def _getNameTransformation(self):
         return self._nameTransformation
 
@@ -1484,7 +1500,7 @@ class ScmPuncher(object):
                         assert replacedEntry in replacedWorkEntries, 'entry must be at least in external or work entries: %s' % replacedEntry
                         self._remove([replacedEntry])
             else:
-                assert False, "operation=%r" % operation # pragma: no cover
+                assert False, "operation=%r" % operation  # pragma: no cover
 
     def _createNameAndKindToListOfFolderItemsMap(self, entries):
         result = {}
@@ -1602,6 +1618,7 @@ class ScmPuncher(object):
         finally:
             self._clear()
 
+
 class ScmWork(object):
     """
     Abstract working copy with a software configuration management system (SCMS).
@@ -1636,7 +1653,7 @@ class ScmWork(object):
         self.specialPathPatternSet = antglob.AntPatternSet(False)
         self.specialPathPatternSet.include("**/.svn, **/_svn")
 
-    def check(self,relativePath=u""):
+    def check(self, relativePath=u""):
         """
         Check that work copy is up to date and no pending changes or messed
         up files are flowing around; otherwise, raise an `ScmError`. To remedy
@@ -1835,7 +1852,7 @@ class ScmWork(object):
 
     def status(self, relativePathsToExamine, recursive=True):
         absolutePathsToExamine = self.absolutePaths("paths to examine", relativePathsToExamine)
-        svnStatusCommand = ["svn", "status",  "--non-interactive", "--verbose", "--xml"]
+        svnStatusCommand = ["svn", "status", "--non-interactive", "--verbose", "--xml"]
         if not recursive:
             svnStatusCommand.append("--non-recursive")
         svnStatusCommand.extend(absolutePathsToExamine)
@@ -1860,6 +1877,7 @@ class ScmWork(object):
         _log.info(u'export "%s" to "%s"', folderPathToExport, targetFolderPath)
         shutil.copytree(folderPathToExport, targetFolderPath, ignore=shutil.ignore_patterns(".svn", "_svn"))
 
+
 def createScmWork(workFolderPath):
     """
     Create an `ScmWork` from an existing work copy located at ``workFolderPath``.
@@ -1881,6 +1899,7 @@ def createScmWork(workFolderPath):
     scmStorage = ScmStorage(scmStorageQualifier)
     result = ScmWork(scmStorage, "", workFolderPath, ScmWork.CheckOutActionSkip)
     return result
+
 
 def scunch(sourceFolderPath, scmWork, textOptions=None, moveMode=ScmPuncher.MoveName, nameTransformation=IdentityNameTransformation, includePatternText=None, excludePatternText=None, workOnlyPatternText=None):
     """
@@ -1929,6 +1948,7 @@ _NameToNewLineMap = {
     'lf': '\n'
 }
 
+
 def _createTextOptions(commandLineOptions):
     assert commandLineOptions is not None
     assert commandLineOptions.tabSize is not None
@@ -1946,6 +1966,7 @@ def _createTextOptions(commandLineOptions):
 _Usage = "%prog [options] FOLDER [WORK-FOLDER]"
 _Description = "Update svn work copy from folder applying add and remove."
 
+
 def _parsedActions(optionsParser, actionName, actionsText, validActions):
     assert optionsParser
     assert actionsText is not None
@@ -1961,6 +1982,7 @@ def _parsedActions(optionsParser, actionName, actionsText, validActions):
             optionsParser.error("%s action %r must be changed to %s" % (actionName, action, _tools.humanReadableList(validActions)))
         result.append(action)
     return result
+
 
 def parsedOptions(arguments):
     assert arguments is not None
@@ -1981,7 +2003,7 @@ def parsedOptions(arguments):
     # Note: --newline does not use default='native' because it is allowed to have a value only
     # when --text is enabled. Otherwise, you get:
     # "error: option --text must be set to enable option --newline"
-    textGroup.add_option("-N", "--newline", dest="newLine", metavar="KIND", type="choice", choices=_NameToNewLineMap.keys(), help=u'separator at the end of line in --text files: %s (default: \'native\')'  % _tools.humanReadableList(sorted(_NameToNewLineMap.keys())))
+    textGroup.add_option("-N", "--newline", dest="newLine", metavar="KIND", type="choice", choices=_NameToNewLineMap.keys(), help=u'separator at the end of line in --text files: %s (default: \'native\')' % _tools.humanReadableList(sorted(_NameToNewLineMap.keys())))
     textGroup.add_option("-S", "--strip-trailing", action="store_true", dest="isStripTrailing", help=u"strip trailing white space from --text files")
     textGroup.add_option("-t", "--text", dest="textPatternSet", metavar="PATTERN", help=u'ant pattern for files to be considered text files (default: none)')
     textGroup.add_option("-T", "--tabsize", default=TextOptions.PreserveTabs, dest="tabSize", metavar="NUMBER", type=long, help=u'number of spaces to allign tabs with in --text files; %d=keep tab (default: %%default)' % TextOptions.PreserveTabs)
@@ -2044,6 +2066,7 @@ def parsedOptions(arguments):
             parser.error("action %r in option --after must appear before action %r but is: %s" % (action, _Actions.Purge, options.actionsToPerformAfterPunching))
 
     return (options, sourceFolderPath, workFolderPath, actionsToPerformBeforePunching, actionsToPerformAfterPunching)
+
 
 def main(arguments=None):
     """

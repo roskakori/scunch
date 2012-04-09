@@ -1,7 +1,7 @@
 """
 Various utility functions for scunch.
 """
-# Copyright (C) 2011 Thomas Aglassinger
+# Copyright (C) 2011 - 2012 Thomas Aglassinger
 #
 # This program is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published by
@@ -22,6 +22,7 @@ import shutil
 
 _log = logging.getLogger("scunch")
 
+
 def makeFolder(folderPathToMake):
     """
     Like `os.makedirs` but does nothing if the folder already exists.
@@ -29,8 +30,9 @@ def makeFolder(folderPathToMake):
     try:
         os.makedirs(folderPathToMake)
     except OSError, error:
-        if error.errno !=  errno.EEXIST:
-            raise # pragma: no cover
+        if error.errno != errno.EEXIST:
+            raise  # pragma: no cover
+
 
 def removeFolder(folderPathToRemove):
     # Attempt to remove the folder, ignoring any errors.
@@ -40,17 +42,19 @@ def removeFolder(folderPathToRemove):
         # If the folder still exists after the removal, try to remove it again but this
         # time with errors raised. In most cases, this will result in a proper error message
         # explaining why the folder could not be removed the first time.
-        shutil.rmtree(folderPathToRemove) # pragma: no cover
+        shutil.rmtree(folderPathToRemove)  # pragma: no cover
+
 
 def makeEmptyFolder(folderPathToCreate):
     removeFolder(folderPathToCreate)
     makeFolder(folderPathToCreate)
 
+
 def humanReadableList(items):
     """
     All values in ``items`` in a human readable form. This is meant to be used in error messages, where
     dumping '%r' to the user does not cut it.
-    
+
     >>> humanReadableList(['red', 'green', 'blue'])
     u"'red', 'green' or 'blue'"
     """
@@ -73,6 +77,7 @@ def humanReadableList(items):
     assert result is not None
     return result
 
+
 def oneOrOtherText(count, oneText, otherText):
     """
     Text depending ``count`` to properly use singular and plural.
@@ -88,7 +93,7 @@ def oneOrOtherText(count, oneText, otherText):
     result = u'%d %s' % (count, text)
     return result
 
-if __name__ == '__main__': # pragma: no cover
+if __name__ == '__main__':  # pragma: no cover
     logging.basicConfig(level=logging.INFO)
     _log.info('running doctest')
     import doctest
