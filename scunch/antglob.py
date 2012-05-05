@@ -35,13 +35,13 @@ build an `AntPatternSet`. For example, to find all files matching
 To find matching files, use::
 
 >>> import os
->>> pythonSet.find(os.curdir)
+>>> pythonSet.find('scunch')
 ['scunch/antglob.py', 'scunch/test_antglob.py']
 
 As test files are of no interest, we can exclude them from the result::
 
 >>> pythonSet.exclude('**/test_*.py')
->>> pythonSet.find(os.curdir)
+>>> pythonSet.find('scunch')
 ['scunch/antglob.py']
 
 Additionally to `AntPatternSet.find()` there is `AntPatternSet..ifind()` which
