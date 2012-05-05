@@ -2011,7 +2011,7 @@ def parsedOptions(arguments):
     consoleGroup = optparse.OptionGroup(parser, u"Console and logging options")
     consoleGroup.add_option("-e", "--encoding", default='auto', help=u'encoding to use for running console commands (default: \'%default\')')
     consoleGroup.add_option("-L", "--log", default='info', dest="logLevel", metavar="LEVEL", type="choice", choices=sorted(_NameToLogLevelMap.keys()), help=u'logging level: %s (default: \'%%default\')' % _tools.humanReadableList(sorted(_NameToLogLevelMap.keys())))
-    consoleGroup.add_option("-n", "--normalize", default='auto', dest="unicodeNormalization", metavar="FORM", type="choice", choices=sorted(_ValidConsoleNormalizations), help=u'uncode normalization to use for running console commands: %s (default: \'%%default\')' % _tools.humanReadableList(_ValidConsoleNormalizations))
+    consoleGroup.add_option("-n", "--normalize", default='auto', dest="unicodeNormalization", metavar="FORM", type="choice", choices=sorted(_ValidConsoleNormalizations), help=u'unicode normalization to use for running console commands: %s (default: \'%%default\')' % _tools.humanReadableList(_ValidConsoleNormalizations))
     parser.add_option_group(consoleGroup)
 
     # Parse and validate command line options.
