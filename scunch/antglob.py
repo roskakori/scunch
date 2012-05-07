@@ -85,6 +85,7 @@ import re
 import stat
 
 _log = logging.getLogger('antglob')
+_logPattern = logging.getLogger('antglob.pattern')
 
 _AntAllMagic = '**'
 _AntMagicRegEx = re.compile('[*?[]')
@@ -415,9 +416,9 @@ def _textItemsMatchPatternItems(textItems, patternItems):
     hasTextItems = (len(textItems) > 0)
     hasPatternItems = (len(patternItems) > 0)
     hasExactlyOnePatternItem = (len(patternItems) == 1)
-    _log.debug('_textItemsMatchPatternItems:')
-    _log.debug('  ti=%s', textItems)
-    _log.debug('  pi=%s', patternItems)
+    _logPattern.debug('_textItemsMatchPatternItems:')
+    _logPattern.debug('  ti=%s', textItems)
+    _logPattern.debug('  pi=%s', patternItems)
     if hasPatternItems:
         firstPatternItem = patternItems[0]
         if hasTextItems:
@@ -431,24 +432,24 @@ def _textItemsMatchPatternItems(textItems, patternItems):
                         # Adjust for the fact that we started to search after the first pattern item.
                         patternItemIndexOfNextAntAllMagic += 1
                     assert patternItemIndexOfNextAntAllMagic != 1, 'consecutive %r must be reduced to 1' % _AntAllMagic
-                    _log.debug('    patternItemIndexOfNextAntAllMagic=%s', patternItemIndexOfNextAntAllMagic)
+                    _logPattern.debug('    patternItemIndexOfNextAntAllMagic=%s', patternItemIndexOfNextAntAllMagic)
                     if patternItemIndexOfNextAntAllMagic is None:
                         # Last "**" encountered; check that tail of text matches end of remaining pattern.
                         patternItemsAfterAllMagic = patternItems[1:]
-                        _log.debug('    patternItemsAfterAllMagic=%s', patternItemsAfterAllMagic)
+                        _logPattern.debug('    patternItemsAfterAllMagic=%s', patternItemsAfterAllMagic)
                         tailOfTextItems = textItems[-len(patternItemsAfterAllMagic):]
                         result = _textItemsAreAtEndOfPatternItems(tailOfTextItems, patternItemsAfterAllMagic)
                     else:
                         # "**" encountered with more "**" to come: check if and part of
                         # ``textItems`` matches the pattern between the two "**".
                         patternItemsBetweenAllMagic = patternItems[1:patternItemIndexOfNextAntAllMagic]
-                        _log.debug('    patternItemsBetweenAllMagic=%s', patternItemsBetweenAllMagic)
+                        _logPattern.debug('    patternItemsBetweenAllMagic=%s', patternItemsBetweenAllMagic)
                         indexOfTextItemsMatchingPatternItemsBetweenAll = _indexInTextItemsWherePatternPartsMatch(textItems, patternItemsBetweenAllMagic)
                         if indexOfTextItemsMatchingPatternItemsBetweenAll >= 0:
                             remainingTextItems = textItems[indexOfTextItemsMatchingPatternItemsBetweenAll + len(patternItemsBetweenAllMagic):]
                             remainingPatternItems = patternItems[patternItemIndexOfNextAntAllMagic:]
-                            _log.debug('    remainingTextItems=%s', remainingTextItems)
-                            _log.debug('    remainingPatternItems=%s', remainingPatternItems)
+                            _logPattern.debug('    remainingTextItems=%s', remainingTextItems)
+                            _logPattern.debug('    remainingPatternItems=%s', remainingPatternItems)
                             result = _textItemsMatchPatternItems(remainingTextItems, remainingPatternItems)
                         else:
                             # We cannot even find the current sub pattern anywhere in the
@@ -684,18 +685,23 @@ class AntPatternSet(object):
                     assert containingFolderPath != os.sep
                     while containingFolderPath not in folderPathsYield:
                         parentFolderPathsToYield.insert(0, containingFolderPath)
-                        folderPathsYield.update([containingFolderPath])
+                        folderPathsYield.add(containingFolderPath)
                     for containingFolderPath in parentFolderPathsToYield:
                         if os.path.isabs(containingFolderPath):
                             raise AntError(u'containing folder path must be a relative path: %r' % containingFolderPath)
-                        yield _asFolderPath(containingFolderPath)
-            yield pathToExamine
+                        result = _asFolderPath(containingFolderPath)
+                        _log.debug(u'    _find(1): %r', result)
+                        yield result
+            result = pathToExamine
+            _log.debug(u'    _find(2): %r', result)
+            yield result
 
     def ifind(self, folderToScanPath=os.getcwdu(), addFolders=False):
         """
         Like `find()` but iterates over ``folderToScanPath`` instead of returning a list of paths.
         """
         assert folderToScanPath is not None
+        _log.debug(u'  ifind in %r', folderToScanPath)
         for relativePath in self._findInFolder(folderToScanPath, addFolders):
             assert not os.path.isabs(relativePath), 'relativePath=%r' % relativePath
             yield relativePath
@@ -714,6 +720,7 @@ class AntPatternSet(object):
         """
         Like `findEntries()` but iterates over ``folderToScanPath`` instead of returning a list of paths.
         """
+        _log.debug(u'  ifindEntries in %r', folderToScanPath)
         for path in self.ifind(folderToScanPath, True):
             parts = _splitTextParts(path)
             yield FileSystemEntry(folderToScanPath, parts)
@@ -724,8 +731,8 @@ class AntPatternSet(object):
         containing at least one such file.
         """
         result = []
+        _log.debug(u'  findEntries in %r', folderToScanPath)
         for entry in self.ifindEntries(folderToScanPath):
-            _log.debug('  %s', entry)
             result.append(entry)
         return result
 
