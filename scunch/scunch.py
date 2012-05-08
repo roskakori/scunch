@@ -743,6 +743,8 @@ Added options to normalize text files and fixed some critical bugs.
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from __future__ import absolute_import
+
 import codecs
 import copy
 import difflib
@@ -761,8 +763,8 @@ import urlparse
 import xml.sax
 from xml.sax.handler import ContentHandler
 
-import antglob
-import _tools
+from scunch import antglob
+from scunch import _tools
 
 __version_info__ = (0, 5, 8)
 __version__ = '.'.join(unicode(item) for item in __version_info__)

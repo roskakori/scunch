@@ -15,12 +15,14 @@ Tests for `_tools`.
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from __future__ import absolute_import
+
 import logging
 import os
 import tempfile
 import unittest
 
-import _tools
+from scunch import _tools
 
 _log = logging.getLogger("test")
 

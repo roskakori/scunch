@@ -28,13 +28,14 @@ Usage
 Before using ``antglob`` you need to set up Python's logging. An easy way to
 do so is::
 
+>>> from __future__ import absolute_import
 >>> import logging
 >>> logging.basicConfig(level=logging.INFO)
 
 Next, import the module::
 
 >>> from scunch import antglob
- 
+
 To find files and folders matching certain patterns, you first have to
 build an `AntPatternSet`. For example, to find all files matching
 ``'*.py'``, use::
@@ -87,6 +88,8 @@ A `FileSystemEntry` has the following properties:
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from __future__ import absolute_import
+
 import errno
 import fnmatch
 import logging
@@ -554,6 +557,8 @@ class AntPatternSet(object):
     As example, first create a pattern and specify which files to include and exclude. In this
     case, we want to include Python source code and documentation but exclude test files:
 
+    >>> from __future__ import absolute_import
+    >>> from scunch import antglob
     >>> pythonSet = antglob.AntPatternSet()
     >>> pythonSet.include('**/*.py, **/*.rst')
     >>> pythonSet.exclude('**/test_*')

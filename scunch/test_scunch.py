@@ -15,6 +15,8 @@ Tests for scunch.
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+from __future__ import absolute_import
+
 import codecs
 import fnmatch
 import logging
@@ -25,9 +27,9 @@ import unittest
 
 from urlparse import urljoin
 
-import scunch
-import _tools
-from scunch import ScmPendingChangesError, ScmNameTransformationError
+from scunch import scunch
+from scunch import _tools
+from scunch.scunch import ScmPendingChangesError, ScmNameTransformationError
 
 _log = logging.getLogger("test")
 
