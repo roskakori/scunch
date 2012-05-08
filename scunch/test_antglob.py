@@ -249,6 +249,26 @@ class AntPatternSetTest(unittest.TestCase):
         self.assertTrue(filePathCount)
         self.assertTrue(folderPathCount)
 
+    def testCanFindFileIn3NestedFolders(self):
+        # Regression test for #21: Fix adding of files within 3 nested otherwise empty folders.
+        pythonSet = antglob.AntPatternSet()
+        pythonSet.include('**/test.txt')
+        nestedFolderPath = os.path.join(self._testFolderPath, '1', '2', '3')
+        self.makeFolder(nestedFolderPath)
+        self.writeTestFile('test.txt', baseFolderPath=nestedFolderPath)
+        filePathCount = 0
+        folderPathCount = 0
+        for entry in pythonSet._findInFolder(self._testFolderPath, True):
+            _log.info(u'  found: %s', entry)
+        for entry in pythonSet.findEntries(self._testFolderPath):
+            _log.info(u'  found: %s', entry.relativePath)
+            if entry.kind == antglob.FileSystemEntry.Folder:
+                folderPathCount += 1
+            else:
+                filePathCount += 1
+        self.assertEqual(filePathCount, 1)
+        self.assertEqual(folderPathCount, 3)
+
     def testCanFindFilesInRootFolder(self):
         pythonSet = antglob.AntPatternSet()
         pythonSet.include('**/*.py, **/*.rst')

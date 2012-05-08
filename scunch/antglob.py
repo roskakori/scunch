@@ -683,17 +683,16 @@ class AntPatternSet(object):
                 parentFolderPathsToYield = []
                 if containingFolderPath:
                     assert containingFolderPath != os.sep
-                    while containingFolderPath not in folderPathsYield:
+                    while (containingFolderPath not in folderPathsYield) and (len(containingFolderPath) > 0):
                         parentFolderPathsToYield.insert(0, containingFolderPath)
                         folderPathsYield.add(containingFolderPath)
+                        containingFolderPath = os.path.dirname(containingFolderPath)
                     for containingFolderPath in parentFolderPathsToYield:
                         if os.path.isabs(containingFolderPath):
                             raise AntError(u'containing folder path must be a relative path: %r' % containingFolderPath)
                         result = _asFolderPath(containingFolderPath)
-                        _log.debug(u'    _find(1): %r', result)
                         yield result
             result = pathToExamine
-            _log.debug(u'    _find(2): %r', result)
             yield result
 
     def ifind(self, folderToScanPath=os.getcwdu(), addFolders=False):

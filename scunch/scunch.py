@@ -622,6 +622,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Version history
 ===============
 
+**Version 0.5.8, 2012-05-08**
+
+* #21: Fixed adding of files within 3 nested otherwise empty folders.
+* Improved debug logging for ant patters: it can now be set separately by
+  using logger 'antglob.pattern'.
+
 **Version 0.5.7, 2012-04-08**
 
 * Fixed confusing warning message in case LC_CTYPE was not set properly.
@@ -758,7 +764,7 @@ from xml.sax.handler import ContentHandler
 import antglob
 import _tools
 
-__version_info__ = (0, 5, 7)
+__version_info__ = (0, 5, 8)
 __version__ = '.'.join(unicode(item) for item in __version_info__)
 
 _log = logging.getLogger("scunch")
@@ -2136,10 +2142,10 @@ def main(arguments=None):
             _log.error(u'  "%s" --> "%s"', existingWorkPath, transformedWorkPath)
         exitError = error
     except (EnvironmentError, ScmError), error:
-        _log.error("%s", error)
+        _log.error(u"%s", error)
         exitError = error
     except Exception, error:
-        _log.exception("%s", error)
+        _log.exception(u"%s", error)
         exitError = error
     assert bool(exitCode) == bool(exitError), "exitCode=%d, exitError=%r" % (exitCode, exitError)
     return (exitCode, exitError)

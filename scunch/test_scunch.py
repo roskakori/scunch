@@ -15,6 +15,7 @@ Tests for scunch.
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import codecs
 import fnmatch
 import logging
 import os
@@ -91,6 +92,13 @@ class _ScmTest(unittest.TestCase):
             for line in lines:
                 targetFile.write(line)
                 targetFile.write(os.linesep)
+
+    def assertFileContains(self, pathToRead, expectedLines, encoding="iso-8859-15"):
+        actualLines = []
+        with codecs.open(pathToRead, "rb", encoding) as fileToRead:
+            for lineRead in fileToRead:
+                actualLines.append(lineRead.rstrip("\r\n"))
+        self.assertEqual(actualLines, expectedLines)
 
     def assertNonNormalStatus(self, expectedStatusToCountMap):
         # TODO: Move to some more appropriate place, for instance something like ``_ScmWorkTest``.
@@ -799,6 +807,7 @@ class ScmPuncherTest(_SvnTest):
         IncludePatternText = "**/*.py **/*.html"
         ExcludePatternText = "**/*i*.py"
         WorkOnlyPatternText = "build.xml"
+        HelloPyNewText = "print 'hello - new version'"
 
         self.setUpProject("punchWithPattern")
         scmWork = self.scmWork
@@ -806,23 +815,42 @@ class ScmPuncherTest(_SvnTest):
         testPunchWithPatternPath = self.createTestFolder("testPunchWithPattern")
         scmWork.exportTo(testPunchWithPatternPath, clear=True)
         buildXmlWorkPath = scmWork.absolutePath("added build.xml in work", "build.xml")
-        helloPyWorkPath = scmWork.absolutePath("removed hello.py in work", "hello.py")
-        readMeTxtWorkPath = scmWork.absolutePath("removed ReadMe.txt in work", "ReadMe.txt")
+        helloPyWorkPath = scmWork.absolutePath("changed hello.py in work", "hello.py")
+        whilyPyWorkPath = scmWork.absolutePath("removed while.py in work", os.path.join("loops", "while.py"))
         whilePyExternalPath = os.path.join(testPunchWithPatternPath, "loops", "while.py")
-        os.remove(helloPyWorkPath)
-        os.remove(readMeTxtWorkPath)
+        helloPyExternalPath = os.path.join(testPunchWithPatternPath, "hello.py")
         os.remove(whilePyExternalPath)
-        self.writeTextFile(buildXmlWorkPath, "<!-- This would normally contain some ant target for scunch. -->")
+        self.writeTextFile(buildXmlWorkPath, ["<!-- This would normally contain some ant target for scunch. -->"])
+        self.writeTextFile(helloPyExternalPath, [HelloPyNewText])
         patternPuncher = scunch.ScmPuncher(scmWork)
         patternPuncher.punch(testPunchWithPatternPath, includePatternText=IncludePatternText, excludePatternText=ExcludePatternText, workOnlyPatternText=WorkOnlyPatternText)
 
         self.assertTrue(os.path.exists(helloPyWorkPath))
+        self.assertFileContains(helloPyWorkPath, [HelloPyNewText])
         self.assertTrue(os.path.exists(buildXmlWorkPath))
-        self.assertFalse(os.path.exists(readMeTxtWorkPath))
 
-        self.assertNonNormalStatus({scunch.ScmStatus.Unversioned: 1, scunch.ScmStatus.Missing: 1})
+        # Note: With the current logic, files excluded from scunch that already exist in the work copy
+        # are preserved.
+        self.assertTrue(os.path.exists(whilyPyWorkPath))
+
+        self.assertNonNormalStatus({scunch.ScmStatus.Modified: 1, scunch.ScmStatus.Unversioned: 1})
+
+    def testCanPunchThreeNestedFoldersWithoutFiles(self):
+        self.setUpEmptyProject("punchThreeNestedFoldersWithoutFiles")
+        scmWork = self.scmWork
+        testPunchWithPatternPath = self.createTestFolder("testPunchThreeNestedFoldersWithoutFiles")
+        scmWork.exportTo(testPunchWithPatternPath, clear=True)
+        level1FolderPath = os.path.join(testPunchWithPatternPath, "level1")
+        level2FolderPath = os.path.join(level1FolderPath, "level2")
+        level3FolderPath = os.path.join(level2FolderPath, "level3")
+        _tools.makeFolder(level3FolderPath)
+        innerFilePath = os.path.join(level3FolderPath, "test.txt")
+        self.writeTextFile(innerFilePath, ["test"])
+        outerPuncher = scunch.ScmPuncher(scmWork)
+        outerPuncher.punch(testPunchWithPatternPath)
+
 
 if __name__ == '__main__':  # pragma: no cover
     scunch._setUpLogging(logging.DEBUG)
-    logging.getLogger("antglob").setLevel(logging.INFO)
+    logging.getLogger("antglob.pattern").setLevel(logging.INFO)
     unittest.main()
