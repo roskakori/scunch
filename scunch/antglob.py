@@ -25,26 +25,36 @@ To sum it up:
 Usage
 -----
 
-To find files and folders matching certains patterns, you first have to
+Before using ``antglob`` you need to set up Python's logging. An easy way to
+do so is::
+
+>>> import logging
+>>> logging.basicConfig(level=logging.INFO)
+
+Next, import the module::
+
+>>> from scunch import antglob
+ 
+To find files and folders matching certain patterns, you first have to
 build an `AntPatternSet`. For example, to find all files matching
 ``'*.py'``, use::
 
->>> pythonSet = AntPatternSet()
+>>> pythonSet = antglob.AntPatternSet()
 >>> pythonSet.include('**/*ant*.py')
 
 To find matching files, use::
 
 >>> import os
 >>> pythonSet.find('scunch')
-['scunch/antglob.py', 'scunch/test_antglob.py']
+['antglob.py', 'test_antglob.py']
 
 As test files are of no interest, we can exclude them from the result::
 
 >>> pythonSet.exclude('**/test_*.py')
 >>> pythonSet.find('scunch')
-['scunch/antglob.py']
+['antglob.py']
 
-Additionally to `AntPatternSet.find()` there is `AntPatternSet..ifind()` which
+Additionally to `AntPatternSet.find()` there is `AntPatternSet.ifind()` which
 yields the result bit by bit instead of returning a whole array.
 
 In case you want to know more than just the name, there is
@@ -544,7 +554,7 @@ class AntPatternSet(object):
     As example, first create a pattern and specify which files to include and exclude. In this
     case, we want to include Python source code and documentation but exclude test files:
 
-    >>> pythonSet = AntPatternSet()
+    >>> pythonSet = antglob.AntPatternSet()
     >>> pythonSet.include('**/*.py, **/*.rst')
     >>> pythonSet.exclude('**/test_*')
 
