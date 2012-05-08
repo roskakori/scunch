@@ -851,6 +851,6 @@ class ScmPuncherTest(_SvnTest):
 
 
 if __name__ == '__main__':  # pragma: no cover
-    scunch._setUpLogging(logging.DEBUG)
+    scunch._setUpLogging(logging.INFO)
     logging.getLogger("antglob.pattern").setLevel(logging.INFO)
     unittest.main()
