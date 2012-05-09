@@ -86,7 +86,7 @@ To read a summary of the available options, run::
   $ scunch --help
 
 For more detailed usage in real world scenarios, read the section on
-`<Scenarios scenarios>`_.
+scenarios_.
 
 Basic usage
 -----------
