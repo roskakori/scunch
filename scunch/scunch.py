@@ -736,7 +736,7 @@ Added options to normalize text files and fixed some critical bugs.
 
 * Initial release.
 """
-# Copyright (C) 2011 - 2012 Thomas Aglassinger
+# Copyright (C) 2011 - 2013 Thomas Aglassinger
 #
 # This program is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published by

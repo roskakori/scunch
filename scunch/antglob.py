@@ -74,7 +74,7 @@ A `FileSystemEntry` has the following properties:
 * ``timeModified``, the timestamp when the file or folder was last
   modified. See ``os.stat``, field ``st_mtime`` on how to process it.
 """
-# Copyright (C) 2011 - 2012 Thomas Aglassinger
+# Copyright (C) 2011 - 2013 Thomas Aglassinger
 #
 # This program is free software: you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published by
