@@ -36,7 +36,7 @@ _log = logging.getLogger("test")
 _BaseTestFolder = os.path.abspath("test")
 
 
-class ToolsTest(unittest.TestCase):
+class ToolsTest(_tools.LoggableTestCase):
     def testRunWithAsciiEcho(self):
         scunch._setUpEncoding()
         scunch.run([u"echo", u"hello"])
@@ -53,8 +53,9 @@ class ToolsTest(unittest.TestCase):
         self.assertEqual(helloWithUmlauts, normalizedHelloPy)
 
 
-class _ScmTest(unittest.TestCase):
+class _ScmTest(_tools.LoggableTestCase):
     def setUp(self):
+        super(_ScmTest, self).setUp()
         scunch._setUpEncoding()
 
     def setUpEmptyProject(self, project, testFolderPath=_BaseTestFolder):

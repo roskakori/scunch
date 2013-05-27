@@ -27,7 +27,7 @@ from scunch import _tools
 _log = logging.getLogger("test")
 
 
-class FolderTest(unittest.TestCase):
+class FolderTest(_tools.LoggableTestCase):
     def testCanMessWithFolders(self):
         testFolderPath = tempfile.mkdtemp(prefix="scunch_test_")
         _tools.removeFolder(testFolderPath)
@@ -45,7 +45,7 @@ class FolderTest(unittest.TestCase):
         _tools.removeFolder(testFolderPath)
 
 
-class HumanReadableListTest(unittest.TestCase):
+class HumanReadableListTest(_tools.LoggableTestCase):
     def testRendersEmptyListAsEmptyText(self):
         self.assertEqual(u'', _tools.humanReadableList([]))
 
@@ -59,7 +59,7 @@ class HumanReadableListTest(unittest.TestCase):
         self.assertEqual(u"'red', 'green' or 'blue'", _tools.humanReadableList(['red', 'green', 'blue']))
 
 
-class OneOrOtherTextTest(unittest.TestCase):
+class OneOrOtherTextTest(_tools.LoggableTestCase):
     def testShows0AsPlural(self):
         self.assertEqual(u'0 items', _tools.oneOrOtherText(0, 'item', 'items'))
 
@@ -70,7 +70,7 @@ class OneOrOtherTextTest(unittest.TestCase):
         self.assertEqual(u'2 items', _tools.oneOrOtherText(2, 'item', 'items'))
 
 
-class BundledPathsTest(unittest.TestCase):
+class BundledPathsTest(_tools.LoggableTestCase):
     def testCanBundlePaths(self):
         self.assertEqual(
             list(_tools.bundledPathsToRun(['c'], ['1', '2', '3'])),

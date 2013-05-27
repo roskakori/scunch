@@ -239,9 +239,9 @@ class AntPatternSetTest(unittest.TestCase):
         pythonSet.exclude('**/*.pyc, **/*.pyo')
         filePathCount = 0
         folderPathCount = 0
-        _log.info('find pattern set: %s', pythonSet)
+        _log.info(u'find pattern set: %s', pythonSet)
         for path in pythonSet.find(self._testFolderPath, True):
-            _log.info('  found: %s', path)
+            _log.info(u'  found: %s', path)
             if antglob.isFolderPath(path):
                 folderPathCount += 1
             else:
@@ -276,9 +276,9 @@ class AntPatternSetTest(unittest.TestCase):
         pythonSet.include('**/*.py, **/*.rst')
         pythonSet.exclude('**/*.pyc, **/*.pyo')
         filePathCount = 0
-        _log.info('find pattern set: %s', pythonSet)
+        _log.info(u'find pattern set: %s', pythonSet)
         for path in pythonSet.find(self._testFolderPath):
-            _log.info('  found: %s', path)
+            _log.info(u'  found: %s', path)
             self.assertFalse(antglob.isFolderPath(path), 'path must not be folder: %r' % path)
             suffix = os.path.splitext(path)[1]
             self.assertTrue(suffix in ('.py', '.rst'))
@@ -295,7 +295,7 @@ class AntPatternSetTest(unittest.TestCase):
 
         pathCount = 0
         for path in pythonSet.find(testFolderPath, True):
-            _log.info('  found: %s', path)
+            _log.info(u'  found: %s', path)
             pathCount += 1
             self.assertTrue(antglob.isFolderPath(path), 'path must be a folder: %r' % path)
         self.assertEqual(pathCount, 1)
@@ -306,9 +306,9 @@ class AntPatternSetTest(unittest.TestCase):
         pythonSet.exclude('**/*.pyc, **/*.pyo')
         fileCount = 0
         folderCount = 0
-        _log.info('find pattern set: %s', pythonSet)
+        _log.info(u'find pattern set: %s', pythonSet)
         for entry in pythonSet.findEntries(self._testFolderPath):
-            _log.info('  found: %s', entry)
+            _log.info(u'  found: %s', entry)
             if entry.kind == antglob.FileSystemEntry.Folder:
                 folderCount += 1
             else:

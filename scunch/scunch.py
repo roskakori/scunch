@@ -603,7 +603,7 @@ To get a list of Removed files and folders::
 License
 =======
 
-Copyright (C) 2011 - 2012 Thomas Aglassinger
+Copyright (C) 2011 - 2013 Thomas Aglassinger
 
 This program is free software: you can redistribute it and/or modify it
 under the terms of the GNU Lesser General Public License as published by
@@ -621,6 +621,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 Version history
 ===============
+
+**Version 0.6.0, 2013-05-28**
+
+* Fixed too long command line calls with multiple paths by splitting them up
+  into multiple calls with fewer paths.
+* Fixed ``UnicodeError`` when logging to the console under Windows and
+  processed file names contained non ASCII characters.
 
 **Version 0.5.8, 2012-05-08**
 
@@ -768,7 +775,7 @@ from xml.sax.handler import ContentHandler
 from scunch import antglob
 from scunch import _tools
 
-__version_info__ = (0, 5, 8)
+__version_info__ = (0, 6, 0)
 __version__ = '.'.join(unicode(item) for item in __version_info__)
 
 _log = logging.getLogger("scunch")
@@ -813,6 +820,8 @@ def _setUpLogging(level=logging.INFO):
     Set up logging with ``level`` being the initial minimum logging level.
     """
     assert level is not None
+
+    _tools.configConsoleLogging()
     logging.basicConfig(level=level)
 
 
@@ -1814,7 +1823,7 @@ class ScmWork(object):
         run(svnMkdirCommand, cwd=self.localTargetPath)
 
     def move(self, relativeSourcePaths, relativeTargetPath, force=False):
-        _log.debug(u'move: %s to "%s"', str(relativeSourcePaths), relativeTargetPath)
+        _log.debug(u'move: %s to "%s"', relativeSourcePaths, relativeTargetPath)
         assert relativeSourcePaths is not None
         assert relativeTargetPath is not None
         svnAddCommand = ["svn", "move", "--non-interactive"]
