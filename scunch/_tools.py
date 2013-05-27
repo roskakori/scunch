@@ -19,6 +19,7 @@ import errno
 import logging
 import os
 import shutil
+import string
 
 _log = logging.getLogger("scunch")
 
@@ -35,7 +36,9 @@ def makeFolder(folderPathToMake):
 
 
 def removeFolder(folderPathToRemove):
-    # Attempt to remove the folder, ignoring any errors.
+    '''
+    Attempt to remove the folder, ignoring any errors.
+    '''
     _log.debug("remove folder \"%s\"", folderPathToRemove)
     shutil.rmtree(folderPathToRemove, True)
     if os.path.exists(folderPathToRemove):
@@ -98,3 +101,60 @@ if __name__ == '__main__':  # pragma: no cover
     _log.info('running doctest')
     import doctest
     doctest.testmod()
+
+
+# Maximum length of console commands. According to
+# <http://support.microsoft.com/kb/830473/>, Windows NT and Windows 2000
+# allow at most 2047. Later Windows versions would allow 8191.
+_MAX_COMMAND_LENGTH = 2047
+
+# Characters in filenames that for sure will not have to be escaped on any platform.
+_UNESCAPED_CHARACTERS = set(string.ascii_letters + string.digits)
+_MIN_BASE_COMMAND_AND_OPTIONS_LENGTH = 3  # 1 blank + 2 quotes
+
+
+def bundledPathsToRun(baseCommandAndOptions, paths, maxCommandLenth=_MAX_COMMAND_LENGTH):
+    assert baseCommandAndOptions
+    assert paths is not None
+
+    def escapedLength(text):
+        '''
+        Countable length for possibly escaped and quoted commands and options.
+
+        This function aims to be platform independent and remains on the safe side when
+        deciding which characters have to be quoted.
+        '''
+        result = _MIN_BASE_COMMAND_AND_OPTIONS_LENGTH
+        for ch in text:
+            if ch in _UNESCAPED_CHARACTERS:
+                result += 1
+            else:
+                result += 2
+        return result
+
+    result = []
+    resultLength = 0
+    baseCommandAndOptionsLength = sum(escapedLength(option) for option in baseCommandAndOptions)
+    maxPathsLength = maxCommandLenth - baseCommandAndOptionsLength
+    if maxPathsLength < 1 + _MIN_BASE_COMMAND_AND_OPTIONS_LENGTH:
+        raise EnvironmentError(u'command must have at most %d escapable characters instead of %d: %s' % (
+            maxPathsLength - (1 + _MIN_BASE_COMMAND_AND_OPTIONS_LENGTH),
+            baseCommandAndOptionsLength, u' '.join(baseCommandAndOptions)))
+    pathIndex = 0
+    pathCount = len(paths)
+
+    while (pathIndex < pathCount):
+        pathToAppend = paths[pathIndex]
+        pathToAppendLength = escapedLength(pathToAppend)
+        if resultLength + pathToAppendLength > maxPathsLength:
+            if not result:
+                raise EnvironmentError(u'path must have at most %d characters instead of %d to be processable by base command "%s": %s' % (
+                    maxPathsLength, pathToAppendLength, u' '.join(baseCommandAndOptions), pathToAppend))
+            yield result
+            result = []
+            resultLength = 0
+        result.append(pathToAppend)
+        resultLength += pathToAppendLength
+        pathIndex += 1
+    if result:
+        yield result

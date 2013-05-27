@@ -86,7 +86,7 @@ To read a summary of the available options, run::
   $ scunch --help
 
 For more detailed usage in real world scenarios, read the section on
-scenarios_.
+`<Scenarios scenarios>`_.
 
 Basic usage
 -----------
@@ -745,6 +745,7 @@ Added options to normalize text files and fixed some critical bugs.
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from __future__ import absolute_import
 
+import atexit
 import codecs
 import copy
 import difflib
@@ -757,6 +758,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import types
 import unicodedata
 import urlparse
@@ -900,9 +902,9 @@ def run(commandAndOptions, returnStdout=False, cwd=None):
                         errorMessage = " Error: " + errorMessage
                     else:
                         errorMessage = "."
-                    raise ScmError(u"cannot perform shell command %r.%s Command:  %s" % (commandName, errorMessage, commandText))
+                    raise ScmError(u"cannot perform shell command '%s'.%s Command: %s" % (commandName, errorMessage, commandText))
             except OSError, error:
-                raise ScmError(u"cannot perform shell command %r: %s. Command:  %s" % (commandName, error, commandText))
+                raise ScmError(u"cannot perform shell command '%s': %s. Command: %s" % (commandName, error, commandText))
             finally:
                 if returnStdout:
                     result = []
@@ -913,8 +915,49 @@ def run(commandAndOptions, returnStdout=False, cwd=None):
                         result.append(line)
                 stdoutFile.close()
     finally:
-        os.remove(stderrPath)
+        try:
+            os.remove(stderrPath)
+        except EnvironmentError:
+            # HACK: If the temporary file cannot be reomoved immediately,
+            # attempt to remove it again upon program exit.
+            atexit.register(os.remove, stderrPath)
     return result
+
+
+def runWithPaths(baseCommandAndOptions, paths, returnStdout=False, cwd=None):
+    '''
+    Run ``baseCommandAndOptions`` and pass ``paths`` to it as additional
+    options. If the resulting command runs into danger of becoming "too long"
+    for the console to be processed, split up ``paths`` into shorter
+    sequences and run multiple commands.
+    '''
+    assert baseCommandAndOptions is not None
+    assert paths is not None
+    assert not isinstance(paths, basestring), 'paths must wrapped in [...] to turn string into sequence: %r' % paths
+    pathCount = len(paths)
+    assert pathCount > 0
+
+    if returnStdout:
+        result = []
+
+    MESSAGE_FORMAT = u'  %5.2f: %s'
+    previousLogTime = time.time()
+    previousLoggedPathIndex = 0
+    for pathIndex, bundledPaths in enumerate(_tools.bundledPathsToRun(baseCommandAndOptions, paths), start=1):
+        commandResult = run(baseCommandAndOptions + bundledPaths, returnStdout=returnStdout, cwd=cwd)
+        percentOfPathsProcessed = 100.0 * pathIndex / pathCount
+        if returnStdout:
+            result.extend(commandResult)
+        now = time.time()
+        if now - previousLogTime > 3:
+            previousLogTime = now
+            previousLoggedPathIndex = pathIndex
+            _log.info(MESSAGE_FORMAT, percentOfPathsProcessed, bundledPaths[-1])
+    if pathIndex > previousLoggedPathIndex:
+        _log.info(MESSAGE_FORMAT, 100, paths[-1])
+
+    if returnStdout:
+        return result
 
 
 class ScmError(Exception):
@@ -1718,7 +1761,7 @@ class ScmWork(object):
             shutil.rmtree(folderPathToRemove)
 
     def update(self, relativePathToUpdate=""):
-        _log.info(u'update out work copy at "%s"', self.localTargetPath)
+        _log.info(u'update work copy at "%s"', self.localTargetPath)
         pathToUpdate = os.path.join(self.localTargetPath, relativePathToUpdate)
         scmCommand = ["svn", "update", "--non-interactive", pathToUpdate]
         run(scmCommand, cwd=self.localTargetPath)
@@ -1744,16 +1787,14 @@ class ScmWork(object):
         return result
 
     def add(self, relativePathsToAdd, recursive=True):
-        _log.debug(u'add: %r', relativePathsToAdd)
         assert relativePathsToAdd is not None
-        svnAddCommand = ["svn", "add", "--non-interactive"]
+
+        _log.info(u'add %d items', len(relativePathsToAdd))
+        _log.debug(u'  add: %r', relativePathsToAdd)
+        svnAddCommandPrefix = ["svn", "add", "--non-interactive"]
         if not recursive:
-            svnAddCommand.append("--non-recursive")
-        if isinstance(relativePathsToAdd, types.StringTypes):
-            svnAddCommand.append(relativePathsToAdd)
-        else:
-            svnAddCommand.extend(relativePathsToAdd)
-        run(svnAddCommand, cwd=self.localTargetPath)
+            svnAddCommandPrefix.append("--non-recursive")
+        runWithPaths(svnAddCommandPrefix, relativePathsToAdd, cwd=self.localTargetPath)
 
     def addUnversioned(self, relativePathsToExamine):
         # TODO: For unversioned folders, add only the folder without recursing and adding all the files in it.
@@ -1787,7 +1828,8 @@ class ScmWork(object):
         run(svnAddCommand, cwd=self.localTargetPath)
 
     def remove(self, relativePathsToRemove, recursive=True, force=False):
-        _log.debug(u'remove: %s', str(relativePathsToRemove))
+        _log.info(u'remove %d items', len(relativePathsToRemove))
+        _log.debug(u'  remove: %s', relativePathsToRemove)
         assert relativePathsToRemove is not None
         svnRemoveCommand = ["svn", "remove", "--non-interactive"]
         if force:
@@ -1795,21 +1837,20 @@ class ScmWork(object):
         if not recursive:
             svnRemoveCommand.append("--non-recursive")
         if isinstance(relativePathsToRemove, types.StringTypes):
-            svnRemoveCommand.append(relativePathsToRemove)
-        else:
-            svnRemoveCommand.extend(relativePathsToRemove)
-        run(svnRemoveCommand, cwd=self.localTargetPath)
+            relativePathsToRemove = [relativePathsToRemove]
+        runWithPaths(svnRemoveCommand, relativePathsToRemove, cwd=self.localTargetPath)
 
     def commit(self, relativePathsToCommit, message, recursive=True):
         assert relativePathsToCommit is not None
         assert message is not None
-        _log.debug(u'commit: %s', str(relativePathsToCommit))
+        _log.debug(u'commit %d items', len(relativePathsToCommit))
+        _log.debug(u'  commit: %s', relativePathsToCommit)
         svnCommitCommand = ["svn", "commit", "--non-interactive"]
         if not recursive:
             svnCommitCommand.append("--non-recursive")
         svnCommitCommand.extend(["--message", message])
-        svnCommitCommand.extend(self.absolutePaths("paths to commit", relativePathsToCommit))
-        run(svnCommitCommand, cwd=self.localTargetPath)
+        pathsToCommit = self.absolutePaths("paths to commit", relativePathsToCommit)
+        runWithPaths(svnCommitCommand, pathsToCommit, cwd=self.localTargetPath)
 
     def isSpecialPath(self, path):
         name = os.path.basename(path)
@@ -2082,7 +2123,7 @@ def main(arguments=None):
     ``(exitCode, error)``. In cause everything worked out, the result is
     ``(0, None)``.
     """
-    if arguments == None:
+    if arguments is None:
         actualArguments = sys.argv
     else:
         actualArguments = arguments
@@ -2144,7 +2185,7 @@ def main(arguments=None):
             _log.error(u'  "%s" --> "%s"', existingWorkPath, transformedWorkPath)
         exitError = error
     except (EnvironmentError, ScmError), error:
-        _log.error(u"%s", error)
+        _log.exception(u"%s", error)
         exitError = error
     except Exception, error:
         _log.exception(u"%s", error)

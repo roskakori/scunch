@@ -69,6 +69,30 @@ class OneOrOtherTextTest(unittest.TestCase):
     def testShows2AsPlural(self):
         self.assertEqual(u'2 items', _tools.oneOrOtherText(2, 'item', 'items'))
 
+
+class BundledPathsTest(unittest.TestCase):
+    def testCanBundlePaths(self):
+        self.assertEqual(
+            list(_tools.bundledPathsToRun(['c'], ['1', '2', '3'])),
+            [['1', '2', '3']])
+
+    def testCanBundleEmptyPaths(self):
+        self.assertEqual(
+            list(_tools.bundledPathsToRun(['c'], [])),
+            [])
+
+    def testCanSplitBundle(self):
+        manyPathsBundle = list(_tools.bundledPathsToRun(['c'], ['1', 'two.txt', 'three.jpeg', '0004.tmp', '5', 'six.six'], 15))
+        logging.info(manyPathsBundle)
+        self.assertEqual(
+            manyPathsBundle,
+            [['1'], ['two.txt'], ['three.jpeg'], ['0004.tmp'], ['5'], ['six.six']])
+
+    def testCanSplitLargeBundle(self):
+        manyPathsBundle = list(_tools.bundledPathsToRun(['c'], [(str(i) + '.txt') for i in xrange(100)], 15))
+        self.assertNotEqual(len(manyPathsBundle), 1)
+
+
 if __name__ == '__main__':  # pragma: no cover
     logging.basicConfig(level=logging.INFO)
     unittest.main()

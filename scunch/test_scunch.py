@@ -179,7 +179,7 @@ class BasicTest(_SvnTest):
         helloWithUmlautPath = scmWork.absolutePath('test file path with umlauts', hello)
         self.writeTextFile(helloWithUmlautPath, ["print u'h\\xe4ll\\xf6'"])
         self.assertNonNormalStatus({scunch.ScmStatus.Unversioned: 1})
-        scmWork.add(helloWithUmlautPath)
+        scmWork.add([helloWithUmlautPath])
         for statusInfo in scmWork.status(""):
             _log.debug("  status=%s", statusInfo)
         self.assertNonNormalStatus({scunch.ScmStatus.Added: 1})
@@ -199,7 +199,7 @@ class BasicTest(_SvnTest):
             scunch.run(['svn', '--no_such_option'])
             self.fail('broken command must cause ScmError')
         except scunch.ScmError, error:
-            self.assertEqual('cannot perform shell command \'svn\'. Error: svn: invalid option: --no_such_option. Command:  svn --no_such_option', str(error))
+            self.assertEqual('cannot perform shell command \'svn\'. Error: svn: invalid option: --no_such_option. Command: svn --no_such_option', str(error))
 
     def testFailsOnUnknownConsoleCommand(self):
         try:
@@ -207,7 +207,7 @@ class BasicTest(_SvnTest):
             self.fail('broken command must cause ScmError')
         except scunch.ScmError, error:
             actualErrorMessage = str(error)
-            expectedErrorMessagePattern = 'cannot perform shell command \'no_such_command\': ?Errno *. Command:  no_such_command'
+            expectedErrorMessagePattern = 'cannot perform shell command \'no_such_command\': ?Errno *. Command: no_such_command'
             self.assertTrue(fnmatch.fnmatch(actualErrorMessage, expectedErrorMessagePattern), 'error message must match pattern %r but is: %r' % (expectedErrorMessagePattern, actualErrorMessage))
 
     def testFailsOnMissingWorkCopy(self):
