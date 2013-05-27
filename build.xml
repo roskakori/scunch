@@ -135,10 +135,13 @@
             -->
             <arg value="--repeat" />
             <arg value="--ignore" />
-            <arg value="E501" />
+            <arg value="E124,E128,E501" />
             <arg file="setup.py" />
             <arg file="scunch" />
             <redirector output="pep8.txt" />
         </exec>
+    	    <concat>
+    	    	    <fileset file="pep8.txt" />
+    	    </concat>
     </target>
 </project>
